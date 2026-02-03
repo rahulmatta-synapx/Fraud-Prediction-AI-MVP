@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, apiRequestFormData } from "@/lib/queryClient";
-import { Car, User, FileText, MapPin, Send, Upload, Sparkles, Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { Car, User, FileText, MapPin, Send, Upload, Sparkles, Loader2, X, Image } from "lucide-react";
 
 const ACCIDENT_TYPES = [
   { value: "Collision", label: "Collision" },
@@ -76,8 +76,8 @@ export default function SubmitClaim() {
   
   const [extractedFields, setExtractedFields] = useState<ExtractedFields | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   const form = useForm<SubmitClaimForm>({
     resolver: zodResolver(submitClaimSchema),
@@ -103,9 +103,30 @@ export default function SubmitClaim() {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
+    if (uploadedFile) {
+      toast({
+        title: "File Already Uploaded",
+        description: "Sorry, only one document per claim entry is allowed. Remove the current file first.",
+        variant: "destructive",
+      });
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      return;
+    }
+
     const file = files[0];
-    setSelectedFile(file);
-    setUploadedFiles(prev => [...prev, file]);
+    setUploadedFile(file);
+    
+    if (file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setImagePreview(null);
+    }
     
     setIsExtracting(true);
     try {
@@ -162,7 +183,23 @@ export default function SubmitClaim() {
       });
     } finally {
       setIsExtracting(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
+  };
+
+  const handleRemoveFile = () => {
+    setUploadedFile(null);
+    setExtractedFields(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+    toast({
+      title: "File Removed",
+      description: "You can now upload a different document.",
+    });
   };
 
   const submitMutation = useMutation({
@@ -216,7 +253,7 @@ export default function SubmitClaim() {
             Document Upload
           </CardTitle>
           <CardDescription>
-            Upload a claim document (PDF or image) to automatically extract field values using AI
+            Upload a claim document (PDF or image) to automatically extract field values using AI. Only one document per claim.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -229,36 +266,80 @@ export default function SubmitClaim() {
             data-testid="input-file-upload"
           />
           
-          <div className="flex items-center gap-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isExtracting}
-              className="gap-2"
-              data-testid="button-upload"
-            >
-              {isExtracting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Extracting...
-                </>
-              ) : (
-                <>
-                  <Upload className="h-4 w-4" />
-                  Upload Document
-                </>
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isExtracting || !!uploadedFile}
+                className="gap-2"
+                data-testid="button-upload"
+              >
+                {isExtracting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Extracting...
+                  </>
+                ) : uploadedFile ? (
+                  <>
+                    <Upload className="h-4 w-4" />
+                    File Uploaded
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4" />
+                    Upload Document
+                  </>
+                )}
+              </Button>
+              
+              {uploadedFile && (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={handleRemoveFile}
+                  className="gap-1"
+                  data-testid="button-remove-file"
+                >
+                  <X className="h-4 w-4" />
+                  Remove
+                </Button>
               )}
-            </Button>
+            </div>
             
-            {uploadedFiles.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {uploadedFiles.map((file, i) => (
-                  <Badge key={i} variant="secondary" className="gap-1">
-                    <FileText className="h-3 w-3" />
-                    {file.name}
-                  </Badge>
-                ))}
+            {uploadedFile && (
+              <div className="flex items-start gap-4 p-3 bg-muted/50 rounded-lg">
+                {imagePreview ? (
+                  <img 
+                    src={imagePreview} 
+                    alt="Document preview" 
+                    className="w-20 h-20 object-cover rounded border"
+                    data-testid="image-preview"
+                  />
+                ) : (
+                  <div className="w-20 h-20 flex items-center justify-center bg-muted rounded border">
+                    <FileText className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate" data-testid="text-filename">{uploadedFile.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {(uploadedFile.size / 1024).toFixed(1)} KB
+                  </p>
+                  {uploadedFile.type.startsWith("image/") && (
+                    <Badge variant="secondary" className="mt-1">
+                      <Image className="h-3 w-3 mr-1" />
+                      Image
+                    </Badge>
+                  )}
+                  {uploadedFile.type === "application/pdf" && (
+                    <Badge variant="secondary" className="mt-1">
+                      <FileText className="h-3 w-3 mr-1" />
+                      PDF
+                    </Badge>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -357,7 +438,7 @@ export default function SubmitClaim() {
                 name="total_previous_claims_gbp"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Total Previous Claims (£)</FormLabel>
+                    <FormLabel>Total Previous Claims (GBP)</FormLabel>
                     <FormControl>
                       <Input type="number" placeholder="0" data-testid="input-previous-amount" {...field} />
                     </FormControl>
@@ -472,7 +553,7 @@ export default function SubmitClaim() {
                 name="vehicle_estimated_value_gbp"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Estimated Value (£)</FormLabel>
+                    <FormLabel>Estimated Value (GBP)</FormLabel>
                     <FormControl>
                       <Input type="number" placeholder="25000" data-testid="input-vehicle-value" {...field} />
                     </FormControl>
@@ -582,24 +663,13 @@ export default function SubmitClaim() {
                   </FormItem>
                 )}
               />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <FileText className="h-5 w-5 text-primary" />
-                Claim Information
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
               <FormField
                 control={form.control}
                 name="claim_amount_gbp"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="flex items-center gap-2">
-                      Claim Amount (£)
+                      Claim Amount (GBP)
                       {hasAiValue("claim_amount_gbp") && (
                         <Badge variant="outline" className="text-xs">
                           {isFieldModified("claim_amount_gbp", field.value) ? (
@@ -613,7 +683,7 @@ export default function SubmitClaim() {
                       )}
                     </FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" placeholder="5000.00" data-testid="input-claim-amount" {...field} />
+                      <Input type="number" placeholder="5000" data-testid="input-claim-amount" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -625,7 +695,7 @@ export default function SubmitClaim() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="flex items-center gap-2">
-                      Accident Description
+                      Description
                       {hasAiValue("accident_description") && (
                         <Badge variant="outline" className="text-xs">
                           {isFieldModified("accident_description", field.value) ? (
@@ -640,9 +710,9 @@ export default function SubmitClaim() {
                     </FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Provide a detailed description of the accident, including circumstances, witnesses, and any relevant information..."
-                        className="min-h-[120px]"
-                        data-testid="textarea-description"
+                        placeholder="Describe what happened..."
+                        className="min-h-24"
+                        data-testid="input-accident-description"
                         {...field}
                       />
                     </FormControl>
@@ -657,23 +727,28 @@ export default function SubmitClaim() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => {
-                form.reset();
-                setExtractedFields(null);
-                setUploadedFiles([]);
-              }}
-              data-testid="button-reset"
+              onClick={() => navigate("/claims")}
+              data-testid="button-cancel"
             >
-              Reset Form
+              Cancel
             </Button>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={submitMutation.isPending}
               className="gap-2"
-              data-testid="button-submit"
+              data-testid="button-submit-claim"
             >
-              <Send className="h-4 w-4" />
-              {submitMutation.isPending ? "Submitting..." : "Submit Claim"}
+              {submitMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4" />
+                  Submit Claim
+                </>
+              )}
             </Button>
           </div>
         </form>

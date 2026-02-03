@@ -1,7 +1,26 @@
 import os
+import re
 from azure.cosmos import CosmosClient, PartitionKey, exceptions
+from azure.core.credentials import AzureKeyCredential
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
+
+def parse_cosmos_connection_string(connection_string: str) -> tuple[str, str]:
+    """Parse Cosmos DB connection string to extract endpoint and key."""
+    connection_string = connection_string.strip().strip('"').strip("'")
+    
+    endpoint = None
+    key = None
+    
+    endpoint_match = re.search(r'AccountEndpoint=([^;]+)', connection_string, re.IGNORECASE)
+    if endpoint_match:
+        endpoint = endpoint_match.group(1).strip()
+    
+    key_match = re.search(r'AccountKey=([^;]+)', connection_string, re.IGNORECASE)
+    if key_match:
+        key = key_match.group(1).strip()
+    
+    return endpoint, key
 
 class CosmosDBService:
     def __init__(self):
@@ -9,10 +28,23 @@ class CosmosDBService:
         if not connection_string:
             raise ValueError("COSMOS_CONNECTION_STRING environment variable is required")
         
-        self.client = CosmosClient.from_connection_string(connection_string)
-        self.database = self.client.get_database_client("fraud-agent")
-        self.claims_container = self.database.get_container_client("claims")
-        self.audit_container = self.database.get_container_client("audit-logs")
+        connection_string = connection_string.strip().strip('"').strip("'")
+        
+        try:
+            endpoint, key = parse_cosmos_connection_string(connection_string)
+            
+            if endpoint and key:
+                self.client = CosmosClient(endpoint, credential=key)
+            else:
+                self.client = CosmosClient.from_connection_string(connection_string)
+            
+            self.database = self.client.get_database_client("fraud-agent")
+            self.claims_container = self.database.get_container_client("claims")
+            self.audit_container = self.database.get_container_client("audit-logs")
+        except ValueError as e:
+            raise ValueError(f"Failed to connect to Cosmos DB: {str(e)}. Expected format: 'AccountEndpoint=https://xxx.documents.azure.com:443/;AccountKey=xxx;'")
+        except Exception as e:
+            raise ValueError(f"Failed to connect to Cosmos DB: {str(e)}")
     
     def save_claim(self, claim: Dict[str, Any]) -> Dict[str, Any]:
         claim["updated_at"] = datetime.utcnow().isoformat()

@@ -9,13 +9,20 @@ def get_azure_openai_client() -> AzureOpenAI:
     api_key = os.environ.get("AZURE_OPENAI_KEY")
     
     if not endpoint or not api_key:
-        raise ValueError("Azure OpenAI credentials not configured")
+        raise ValueError("Azure OpenAI credentials not configured. Set AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_KEY.")
+    
+    endpoint = endpoint.strip().strip('"').strip("'")
+    api_key = api_key.strip().strip('"').strip("'")
     
     return AzureOpenAI(
         azure_endpoint=endpoint,
         api_key=api_key,
         api_version="2024-02-15-preview"
     )
+
+def get_deployment_name() -> str:
+    """Get the Azure OpenAI deployment name from env or use default."""
+    return os.environ.get("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o").strip().strip('"').strip("'")
 
 EXTRACTION_PROMPT = '''You are a document analysis assistant for UK motor insurance claims.
 Extract the following fields from the uploaded document image. Be accurate and extract only what you can clearly see.
@@ -63,8 +70,11 @@ async def extract_fields_from_document(
     content_type: str,
     filename: str
 ) -> Dict[str, Any]:
+    import asyncio
+    
     try:
         client = get_azure_openai_client()
+        deployment_name = get_deployment_name()
         
         base64_content = base64.b64encode(file_content).decode("utf-8")
         
@@ -97,12 +107,38 @@ async def extract_fields_from_document(
             }
         ]
         
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=messages,
-            temperature=0.1,
-            max_tokens=1500
-        )
+        max_retries = 3
+        retry_delay = 2
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                response = client.chat.completions.create(
+                    model=deployment_name,
+                    messages=messages,
+                    temperature=0.1,
+                    max_tokens=1500
+                )
+                break
+            except Exception as e:
+                error_str = str(e)
+                last_error = e
+                if "DeploymentNotFound" in error_str or "404" in error_str:
+                    if attempt < max_retries - 1:
+                        print(f"Deployment not found, retrying in {retry_delay}s (attempt {attempt + 1}/{max_retries})")
+                        await asyncio.sleep(retry_delay)
+                        retry_delay *= 2
+                        continue
+                    else:
+                        return {
+                            "error": f"OpenAI deployment '{deployment_name}' not found after {max_retries} retries. Check Azure portal and set AZURE_OPENAI_DEPLOYMENT_NAME.",
+                            "extraction_confidence": 0.0
+                        }
+                else:
+                    raise e
+        
+        if last_error and 'response' not in dir():
+            return {"error": str(last_error), "extraction_confidence": 0.0}
         
         content = response.choices[0].message.content.strip()
         
@@ -137,5 +173,13 @@ async def extract_fields_from_document(
         print(f"JSON parse error: {e}")
         return {"error": "Failed to parse extraction results", "extraction_confidence": 0.0}
     except Exception as e:
-        print(f"Document extraction error: {e}")
-        return {"error": str(e), "extraction_confidence": 0.0}
+        error_str = str(e)
+        print(f"Document extraction error: {error_str}")
+        
+        if "DeploymentNotFound" in error_str or "404" in error_str:
+            return {
+                "error": f"OpenAI deployment not found. Check Azure portal and set AZURE_OPENAI_DEPLOYMENT_NAME (current: {get_deployment_name()})",
+                "extraction_confidence": 0.0
+            }
+        
+        return {"error": error_str, "extraction_confidence": 0.0}

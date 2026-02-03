@@ -1,0 +1,58 @@
+You are fixing and updating an existing MVP Fraud Prediction AI Agent project (React frontend + Azure Functions Python/FastAPI backend) that is throwing errors during document upload and extraction.
+
+Current errors from logs:
+1. When uploading a document on Submit New Claim → "Extraction Warning: Error code: 404 - {'error': {'code': 'DeploymentNotFound', 'message': 'The API deployment for this resource does not exist...'}}"
+   → This means the Azure OpenAI deployment name is wrong or the gpt-4o deployment doesn't exist yet. Fix by using the correct deployment name (assume it's "gpt-4o" or prompt user to confirm).
+
+2. On GET /api/claims or /api/stats → ValueError: dictionary update sequence element #0 has length 1; 2 is required
+   → This is because CosmosClient.from_connection_string() is receiving a malformed connection string (extra spaces, quotes, missing ; or =). Fix parsing: strip whitespace, validate format, or use alternative CosmosClient(endpoint, credential) with azure-identity.
+
+Other requested fixes / features:
+- Restrict file upload to **only one document** per claim entry (disable multiple file selection).
+- If user tries to upload a second file → show UI message: "Sorry, only one document per claim entry is allowed."
+- Add a **Remove** button next to the uploaded file preview — allow user to delete the file from state and clear preview.
+- Keep auto-fill working: after upload → send base64 to /extract-fields → GPT-4o vision (Responses API) extracts motor fields → auto-fill form.
+- All other features remain: 3 users (jake/rahul/navsheen), simple JWT login, Cosmos DB persistence (fraud-agent db, claims + audit-logs containers), Blob Storage for raw files, audit logs with user name/timestamp, motor insurance fields only.
+
+Current secrets are already set:
+- COSMOS_CONNECTION_STRING
+- AZURE_OPENAI_ENDPOINT
+- AZURE_OPENAI_KEY
+- AZURE_STORAGE_CONNECTION_STRING
+
+Tasks to fix and implement:
+1. Fix OpenAI 404 error:
+   - Use correct deployment name (hardcode "gpt-4o" or add env var AZURE_OPENAI_DEPLOYMENT_NAME)
+   - In ai_service.py: update client.chat.completions.create(model=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o"))
+   - Add fallback check: if 404, log and return error message "OpenAI deployment not found – check Azure portal"
+
+2. Fix Cosmos DB connection error:
+   - In db/cosmos.py: clean connection string (strip whitespace, ensure no extra quotes)
+   - Alternative: Use endpoint + credential = AzureKeyCredential(key)
+     - Parse connection string manually to get AccountEndpoint and AccountKey
+   - Add try/except with better error message
+
+3. Update file upload in frontend (SubmitClaim.tsx):
+   - Change <input type="file" multiple={false} /> to prevent multiple selection
+   - Use single file state (useState<File | null>)
+   - Show preview + Remove button (clear file state + remove from formData)
+   - On second attempt → show toast/alert: "Sorry, only one document per claim entry is allowed."
+
+4. Backend /extract-fields endpoint:
+   - Accept single file base64
+   - Use GPT-4o vision (Responses API) for field extraction
+   - Return JSON with exact motor fields
+
+5. Keep Blob upload: After successful extraction/submit → upload to 'claims-docs' container using AZURE_STORAGE_CONNECTION_STRING
+
+Output:
+- Step-by-step fixes applied
+- Updated code blocks for:
+  - backend/app/db/cosmos.py (fixed connection)
+  - backend/app/services/ai_service.py (fixed deployment name + vision call)
+  - backend/app/routers/claims.py (/extract-fields endpoint)
+  - frontend/src/pages/SubmitClaim.tsx (single file + remove button + error message)
+- How to test: login → go to submit claim → upload one PDF → see auto-fill → try second upload → see error → remove file → upload new one
+- Any additional env vars needed (e.g., AZURE_OPENAI_DEPLOYMENT_NAME)
+
+Generate the fixes now — make it robust, user-friendly, and production-minded.
