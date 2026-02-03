@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
+import { z } from "zod";
 import {
   Select,
   SelectContent,
@@ -23,14 +24,27 @@ import {
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { overrideInputSchema, type OverrideInput } from "@shared/schema";
 import { AlertTriangle, Edit3, Save } from "lucide-react";
 
 interface OverrideFormProps {
-  claimId: number;
+  claimId: string;
   currentScore: number | null;
   onSuccess?: () => void;
 }
+
+const overrideInputSchema = z.object({
+  new_score: z.number().min(0).max(100),
+  reason_category: z.enum([
+    "false_positive",
+    "additional_evidence",
+    "disagree_with_signal",
+    "manual_review_complete",
+    "other",
+  ]),
+  notes: z.string().min(1, "Notes are required"),
+});
+
+type OverrideInput = z.infer<typeof overrideInputSchema>;
 
 const reasonOptions = [
   { value: "false_positive", label: "False Positive" },
@@ -48,8 +62,8 @@ export function OverrideForm({ claimId, currentScore, onSuccess }: OverrideFormP
   const form = useForm<OverrideInput>({
     resolver: zodResolver(overrideInputSchema),
     defaultValues: {
-      newScore: currentScore ?? 50,
-      reasonCategory: undefined,
+      new_score: currentScore ?? 50,
+      reason_category: undefined,
       notes: "",
     },
   });
@@ -78,7 +92,7 @@ export function OverrideForm({ claimId, currentScore, onSuccess }: OverrideFormP
     },
   });
 
-  const watchedScore = form.watch("newScore");
+  const watchedScore = form.watch("new_score");
 
   const getScoreColor = (score: number) => {
     if (score >= 70) return "text-risk-high";
@@ -116,7 +130,7 @@ export function OverrideForm({ claimId, currentScore, onSuccess }: OverrideFormP
           <form onSubmit={form.handleSubmit((data) => overrideMutation.mutate(data))} className="space-y-6">
             <FormField
               control={form.control}
-              name="newScore"
+              name="new_score"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>New Score</FormLabel>
@@ -147,7 +161,7 @@ export function OverrideForm({ claimId, currentScore, onSuccess }: OverrideFormP
 
             <FormField
               control={form.control}
-              name="reasonCategory"
+              name="reason_category"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Reason for Override</FormLabel>

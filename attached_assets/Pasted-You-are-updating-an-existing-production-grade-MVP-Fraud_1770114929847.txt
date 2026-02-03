@@ -1,0 +1,84 @@
+You are updating an existing production-grade MVP Fraud Prediction AI Agent (UK Motor Insurance only) using fully Azure-native services.
+
+The current project already has:
+- Azure Functions (Python + FastAPI) backend
+- React (Vite + Tailwind + shadcn/ui) frontend
+- Azure Cosmos DB: database 'fraud-agent', containers 'claims' and 'audit-logs' (both with partition key /claim_id)
+- Azure OpenAI GPT-4o deployment
+- Azure Blob Storage container 'claims-docs'
+- Secrets already added in Replit: 
+  - COSMOS_CONNECTION_STRING (full connection string for Cosmos DB)
+  - AZURE_OPENAI_ENDPOINT[](https://...openai.azure.com/)
+  - AZURE_OPENAI_KEY (API key for OpenAI)
+  - AZURE_STORAGE_CONNECTION_STRING (connection string for Blob Storage)
+
+Final decisions from product lead (must implement exactly):
+- Persistent storage required: Use Cosmos DB for all claims, scores, overrides, audit logs — data must survive refresh/redeploy. Keep history at least for the last 1 day (add timestamp to every record; allow filtering by last 24h if needed).
+- Minimal multi-user support: Exactly 3 users — Jake, Rahul, Navsheen. Use simple hardcoded login form (username + password) + JWT tokens. Hardcode credentials (e.g. password "password123" for all three for MVP simplicity). In audit logs show full name + action, e.g. "Navsheen changed score from 65 to 30 on 2025-02-03 15:45:23 UTC".
+- Focus ONLY on Motor Insurance — no multi-type support. Use these exact fields in UI form and AI extraction:
+  - claimant_name
+  - policy_id
+  - num_previous_claims (integer)
+  - total_previous_claims_gbp (float)
+  - vehicle_make
+  - vehicle_model
+  - vehicle_year (integer)
+  - vehicle_registration
+  - vehicle_estimated_value_gbp (float)
+  - accident_date (YYYY-MM-DD)
+  - accident_type (one of: Collision, Rear-End, Side Impact, Rollover, Hit and Run, Parking Damage, Theft, Vandalism, Fire, Flood Damage)
+  - accident_location
+  - claim_amount_gbp (float)
+  - accident_description (full text)
+- Document extraction / auto-fill: Use Azure OpenAI GPT-4o vision (Responses API with base64 PDF/image input) — NO Document Intelligence fallback. Extract the above fields accurately, return structured JSON, auto-fill the Submit New Claim form after upload. User must review/edit fields — if any field differs from AI-extracted value, log FIELD_EDIT in audit trail (old AI value vs new user value, user name, timestamp, reason if provided).
+- Audit logging: Immutable records in 'audit-logs' container. Every action includes: claim_id, user_name, timestamp (UTC), action_type (SCORE_GENERATED, OVERRIDE, FIELD_EDIT, STATUS_CHANGE), details (old/new values, reason/notes). Show full history in claim detail page.
+- Blob Storage: Required — store raw uploaded files in 'claims-docs' container. After upload, store blob path or SAS URL in claim record for viewing in dashboard.
+- Human-in-the-loop only: AI score is recommendation — user can override freely + must add reason/notes.
+- Secure: JWT for API protection (except /login), production-minded code.
+
+Detailed tasks to update / complete:
+1. Database (Cosmos DB):
+   - Connect using secret COSMOS_CONNECTION_STRING
+   - Implement full CRUD: save_claim, get_claim, list_claims (sorted by fraud_score DESC), update_claim
+   - Save audit_entry on every change
+   - Add timestamp to all records (use datetime.utcnow())
+
+2. Authentication:
+   - Simple login endpoint /login (POST username + password)
+   - Hardcoded users: {"jake": "password123", "rahul": "password123", "navsheen": "password123"}
+   - Return JWT on success (PyJWT, include user_name in claims)
+   - Protect all other endpoints with JWT validation middleware
+   - Attach user_name to request context
+
+3. Submit Claim enhancements:
+   - Form with exact motor fields + file upload (multiple files OK)
+   - On file select → send base64 to backend /extract-fields
+   - Backend: use GPT-4o vision (Responses API) → extract JSON → return
+   - Frontend: auto-fill fields from JSON response
+   - On submit: compare AI vs final → log FIELD_EDIT for each changed field
+   - Upload files to Blob using secret AZURE_STORAGE_CONNECTION_STRING → save blob paths in claim
+   - Then run rules + GPT-4o signals → calculate score → save to Cosmos → log SCORE_GENERATED with user
+
+4. Dashboard & Detail:
+   - List: show claim_id, fraud_score, risk_band (High >70, Medium 30–70, Low <30), status, last_updated
+   - Detail: score, rules, signals, extracted fields, document viewer (Blob URL), override form
+   - Override: new_score, reason_category (dropdown), notes → save + log OVERRIDE
+
+5. Audit display:
+   - In detail page: timeline/table of all audit entries for that claim (user, time, action, details)
+
+6. LLM vision extraction prompt:
+   - Neutral, accurate, motor-specific examples (policy number on certificate, date on report, damage from photo)
+
+Output format:
+- Step-by-step what was updated/added
+- Full code blocks for changed/added files:
+  - backend/services/db_service.py (Cosmos wrapper)
+  - backend/services/ai_service.py (vision extraction + signals)
+  - backend/routers/auth.py and claims.py
+  - frontend/src/pages/Login.tsx, SubmitClaim.tsx, ClaimDetail.tsx
+  - LLM prompt template
+- Instructions: how to test (login as navsheen, upload PDF, see auto-fill, edit field, submit, check logs)
+- Deployment: func azure functionapp publish reminder
+
+Generate the complete updates now — secure, auditable, persistent, Azure-native.

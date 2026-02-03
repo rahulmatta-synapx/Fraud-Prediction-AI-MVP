@@ -12,10 +12,28 @@ import { Button } from "@/components/ui/button";
 import { RiskBadge } from "@/components/risk-badge";
 import { StatusBadge } from "@/components/status-badge";
 import { ChevronRight, Car, Calendar, PoundSterling } from "lucide-react";
-import type { Claim } from "@shared/schema";
+
+interface ClaimSummary {
+  id: string;
+  claim_id?: string;
+  claimRef?: string;
+  claimant_name?: string;
+  claimantName?: string;
+  policy_id?: string;
+  policyId?: string;
+  claim_amount_gbp?: number;
+  claimAmount?: number;
+  accident_date?: string;
+  accidentDate?: string;
+  status: string;
+  fraud_score?: number | null;
+  fraudScore?: number | null;
+  risk_band?: string | null;
+  riskBand?: string | null;
+}
 
 interface ClaimsTableProps {
-  claims: Claim[];
+  claims: ClaimSummary[];
   isLoading?: boolean;
 }
 
@@ -42,6 +60,14 @@ export function ClaimsTable({ claims, isLoading }: ClaimsTableProps) {
     );
   }
 
+  const getClaimRef = (c: ClaimSummary) => c.claim_id || c.claimRef || c.id;
+  const getClaimantName = (c: ClaimSummary) => c.claimant_name || c.claimantName || "";
+  const getPolicyId = (c: ClaimSummary) => c.policy_id || c.policyId || "";
+  const getClaimAmount = (c: ClaimSummary) => c.claim_amount_gbp ?? c.claimAmount ?? 0;
+  const getAccidentDate = (c: ClaimSummary) => c.accident_date || c.accidentDate || new Date().toISOString();
+  const getFraudScore = (c: ClaimSummary) => c.fraud_score ?? c.fraudScore ?? null;
+  const getRiskBand = (c: ClaimSummary) => c.risk_band || c.riskBand || null;
+
   return (
     <div className="rounded-md border border-border overflow-hidden">
       <Table>
@@ -64,19 +90,19 @@ export function ClaimsTable({ claims, isLoading }: ClaimsTableProps) {
               data-testid={`row-claim-${claim.id}`}
             >
               <TableCell className="font-mono font-medium text-sm">
-                {claim.claimRef}
+                {getClaimRef(claim)}
               </TableCell>
               <TableCell>
                 <div className="flex flex-col">
-                  <span className="font-medium">{claim.claimantName}</span>
-                  <span className="text-xs text-muted-foreground">{claim.policyId}</span>
+                  <span className="font-medium">{getClaimantName(claim)}</span>
+                  <span className="text-xs text-muted-foreground">{getPolicyId(claim)}</span>
                 </div>
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-1">
                   <PoundSterling className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="font-medium">
-                    {Number(claim.claimAmount).toLocaleString("en-GB", {
+                    {Number(getClaimAmount(claim)).toLocaleString("en-GB", {
                       minimumFractionDigits: 2,
                     })}
                   </span>
@@ -86,7 +112,7 @@ export function ClaimsTable({ claims, isLoading }: ClaimsTableProps) {
                 <div className="flex items-center gap-1.5 text-muted-foreground">
                   <Calendar className="h-3.5 w-3.5" />
                   <span className="text-sm">
-                    {format(new Date(claim.accidentDate), "dd MMM yyyy")}
+                    {format(new Date(getAccidentDate(claim)), "dd MMM yyyy")}
                   </span>
                 </div>
               </TableCell>
@@ -95,8 +121,8 @@ export function ClaimsTable({ claims, isLoading }: ClaimsTableProps) {
               </TableCell>
               <TableCell className="text-center">
                 <RiskBadge 
-                  riskBand={claim.riskBand as "high" | "medium" | "low" | null} 
-                  score={claim.fraudScore}
+                  riskBand={getRiskBand(claim) as "high" | "medium" | "low" | null} 
+                  score={getFraudScore(claim)}
                   size="sm"
                 />
               </TableCell>

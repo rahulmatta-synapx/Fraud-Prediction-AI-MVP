@@ -13,17 +13,32 @@ import {
   ArrowRight,
   RefreshCw
 } from "lucide-react";
-import type { Claim } from "@shared/schema";
+
+interface ClaimSummary {
+  id: string;
+  claim_id?: string;
+  claimant_name?: string;
+  policy_id?: string;
+  claim_amount_gbp?: number;
+  accident_date?: string;
+  status: string;
+  fraud_score?: number | null;
+  risk_band?: string | null;
+}
 
 interface DashboardStats {
-  totalClaims: number;
-  highRiskClaims: number;
-  pendingReview: number;
-  overridesThisMonth: number;
+  total_claims?: number;
+  totalClaims?: number;
+  high_risk_claims?: number;
+  highRiskClaims?: number;
+  pending_review?: number;
+  pendingReview?: number;
+  overrides_this_month?: number;
+  overridesThisMonth?: number;
 }
 
 export default function Dashboard() {
-  const { data: claims = [], isLoading: claimsLoading, refetch } = useQuery<Claim[]>({
+  const { data: claims = [], isLoading: claimsLoading, refetch } = useQuery<ClaimSummary[]>({
     queryKey: ["/api/claims"],
   });
 
@@ -31,8 +46,13 @@ export default function Dashboard() {
     queryKey: ["/api/stats"],
   });
 
-  const highRiskClaims = claims.filter(c => c.riskBand === "high").slice(0, 5);
+  const highRiskClaims = claims.filter(c => (c.risk_band || "") === "high").slice(0, 5);
   const recentClaims = claims.slice(0, 5);
+
+  const getTotalClaims = () => stats?.total_claims ?? stats?.totalClaims ?? claims.length;
+  const getHighRiskClaims = () => stats?.high_risk_claims ?? stats?.highRiskClaims ?? highRiskClaims.length;
+  const getPendingReview = () => stats?.pending_review ?? stats?.pendingReview ?? claims.filter(c => c.status === "under_review").length;
+  const getOverrides = () => stats?.overrides_this_month ?? stats?.overridesThisMonth ?? 0;
 
   return (
     <div className="p-6 space-y-6" data-testid="page-dashboard">
@@ -58,26 +78,26 @@ export default function Dashboard() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatsCard
           title="Total Claims"
-          value={stats?.totalClaims ?? claims.length}
+          value={getTotalClaims()}
           description="Active in system"
           icon={FileText}
         />
         <StatsCard
           title="High Risk"
-          value={stats?.highRiskClaims ?? highRiskClaims.length}
+          value={getHighRiskClaims()}
           description="Requires attention"
           icon={AlertTriangle}
           className="border-risk-high/20"
         />
         <StatsCard
           title="Pending Review"
-          value={stats?.pendingReview ?? claims.filter(c => c.status === "reviewing").length}
+          value={getPendingReview()}
           description="In progress"
           icon={TrendingUp}
         />
         <StatsCard
           title="Overrides"
-          value={stats?.overridesThisMonth ?? 0}
+          value={getOverrides()}
           description="This month"
           icon={UserCheck}
         />
@@ -120,12 +140,12 @@ export default function Dashboard() {
                       data-testid={`priority-claim-${claim.id}`}
                     >
                       <div>
-                        <p className="font-medium text-sm">{claim.claimRef}</p>
-                        <p className="text-xs text-muted-foreground">{claim.claimantName}</p>
+                        <p className="font-medium text-sm">{claim.claim_id || claim.id}</p>
+                        <p className="text-xs text-muted-foreground">{claim.claimant_name}</p>
                       </div>
                       <RiskBadge 
                         riskBand="high" 
-                        score={claim.fraudScore} 
+                        score={claim.fraud_score}
                         size="sm"
                       />
                     </div>

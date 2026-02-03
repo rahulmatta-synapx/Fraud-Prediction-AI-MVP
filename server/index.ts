@@ -1,27 +1,70 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
-import { seedDatabase } from "./seed";
+import { spawn, ChildProcess } from "child_process";
+import { createProxyMiddleware } from "http-proxy-middleware";
 
 const app = express();
 const httpServer = createServer(app);
 
-declare module "http" {
-  interface IncomingMessage {
-    rawBody: unknown;
-  }
+let pythonProcess: ChildProcess | null = null;
+
+function startPythonBackend(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    console.log("Starting Python backend on port 8000...");
+    
+    pythonProcess = spawn("python", [
+      "-m", "uvicorn",
+      "backend.app.main:app",
+      "--host", "0.0.0.0",
+      "--port", "8000",
+      "--reload"
+    ], {
+      stdio: ["pipe", "pipe", "pipe"],
+      env: { ...process.env }
+    });
+
+    pythonProcess.stdout?.on("data", (data) => {
+      const message = data.toString().trim();
+      if (message) console.log(`[python] ${message}`);
+      if (message.includes("Uvicorn running") || message.includes("Application startup complete")) {
+        resolve();
+      }
+    });
+
+    pythonProcess.stderr?.on("data", (data) => {
+      const message = data.toString().trim();
+      if (message) console.log(`[python] ${message}`);
+      if (message.includes("Uvicorn running") || message.includes("Application startup complete")) {
+        resolve();
+      }
+    });
+
+    pythonProcess.on("error", (err) => {
+      console.error("Failed to start Python backend:", err);
+      reject(err);
+    });
+
+    pythonProcess.on("exit", (code) => {
+      console.log(`Python backend exited with code ${code}`);
+    });
+
+    setTimeout(() => resolve(), 5000);
+  });
 }
 
-app.use(
-  express.json({
-    verify: (req, _res, buf) => {
-      req.rawBody = buf;
-    },
-  }),
-);
+process.on("exit", () => {
+  if (pythonProcess) {
+    pythonProcess.kill();
+  }
+});
 
-app.use(express.urlencoded({ extended: false }));
+process.on("SIGINT", () => {
+  if (pythonProcess) {
+    pythonProcess.kill();
+  }
+  process.exit();
+});
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -34,38 +77,42 @@ export function log(message: string, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+(async () => {
+  // Start the Python backend first
+  try {
+    await startPythonBackend();
+    log("Python backend started successfully");
+  } catch (error) {
+    console.error("Warning: Python backend may not have started:", error);
+  }
 
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      log(logLine);
-    }
+  // Create proxy middleware for API routes - add /api prefix back
+  const apiProxy = createProxyMiddleware({
+    target: "http://localhost:8000",
+    changeOrigin: true,
+    pathRewrite: (path) => `/api${path}`,  // Add /api prefix
   });
 
-  next();
-});
+  // Create proxy middleware for auth routes - add /auth prefix back
+  const authProxy = createProxyMiddleware({
+    target: "http://localhost:8000",
+    changeOrigin: true,
+    pathRewrite: (path) => `/auth${path}`,  // Add /auth prefix
+  });
 
-(async () => {
-  // Seed database with sample data
-  await seedDatabase().catch(console.error);
-  
-  await registerRoutes(httpServer, app);
+  // Create proxy middleware for health routes
+  const healthProxy = createProxyMiddleware({
+    target: "http://localhost:8000",
+    changeOrigin: true,
+    pathRewrite: (path) => `/health${path}`,  // Add /health prefix
+  });
 
+  // Mount proxies
+  app.use("/api", apiProxy);
+  app.use("/auth", authProxy);
+  app.use("/health", healthProxy);
+
+  // Error handler
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,32 +13,48 @@ import {
 } from "@/components/ui/select";
 import { ClaimsTable } from "@/components/claims-table";
 import { Plus, Search, Filter, Download } from "lucide-react";
-import type { Claim } from "@shared/schema";
+
+interface ClaimSummary {
+  id: string;
+  claim_id?: string;
+  claimant_name?: string;
+  policy_id?: string;
+  claim_amount_gbp?: number;
+  accident_date?: string;
+  status: string;
+  fraud_score?: number | null;
+  risk_band?: string | null;
+}
 
 export default function ClaimsList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [riskFilter, setRiskFilter] = useState<string>("all");
 
-  const { data: claims = [], isLoading } = useQuery<Claim[]>({
+  const { data: claims = [], isLoading } = useQuery<ClaimSummary[]>({
     queryKey: ["/api/claims"],
   });
 
   const filteredClaims = claims.filter((claim) => {
+    const claimId = claim.claim_id || claim.id || "";
+    const claimantName = claim.claimant_name || "";
+    const policyId = claim.policy_id || "";
+    const riskBand = claim.risk_band || "";
+    
     const matchesSearch = 
-      claim.claimRef.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      claim.claimantName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      claim.policyId.toLowerCase().includes(searchTerm.toLowerCase());
+      claimId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      claimantName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      policyId.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesStatus = statusFilter === "all" || claim.status === statusFilter;
-    const matchesRisk = riskFilter === "all" || claim.riskBand === riskFilter;
+    const matchesRisk = riskFilter === "all" || riskBand === riskFilter;
 
     return matchesSearch && matchesStatus && matchesRisk;
   });
 
   const sortedClaims = [...filteredClaims].sort((a, b) => {
-    const scoreA = a.fraudScore ?? 0;
-    const scoreB = b.fraudScore ?? 0;
+    const scoreA = a.fraud_score ?? 0;
+    const scoreB = b.fraud_score ?? 0;
     return scoreB - scoreA;
   });
 
@@ -46,12 +62,12 @@ export default function ClaimsList() {
     const csv = [
       ["Claim Ref", "Claimant", "Amount", "Status", "Risk Score", "Risk Band"].join(","),
       ...sortedClaims.map(c => [
-        c.claimRef,
-        `"${c.claimantName}"`,
-        c.claimAmount,
+        c.claim_id || c.id,
+        `"${c.claimant_name || ""}"`,
+        c.claim_amount_gbp || 0,
         c.status,
-        c.fraudScore ?? "N/A",
-        c.riskBand ?? "N/A"
+        c.fraud_score ?? "N/A",
+        c.risk_band ?? "N/A"
       ].join(","))
     ].join("\n");
 
@@ -110,8 +126,9 @@ export default function ClaimsList() {
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="new">New</SelectItem>
                   <SelectItem value="scored">Scored</SelectItem>
-                  <SelectItem value="reviewing">Reviewing</SelectItem>
-                  <SelectItem value="decided">Decided</SelectItem>
+                  <SelectItem value="under_review">Under Review</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="denied">Denied</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={riskFilter} onValueChange={setRiskFilter}>

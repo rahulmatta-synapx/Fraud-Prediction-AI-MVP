@@ -1,0 +1,166 @@
+from pydantic import BaseModel, Field
+from typing import Optional, List, Literal
+from datetime import datetime
+import uuid
+
+AccidentType = Literal[
+    "Collision", "Rear-End", "Side Impact", "Rollover", "Hit and Run",
+    "Parking Damage", "Theft", "Vandalism", "Fire", "Flood Damage"
+]
+
+ActionType = Literal["SCORE_GENERATED", "OVERRIDE", "FIELD_EDIT", "STATUS_CHANGE", "CLAIM_CREATED", "DOCUMENT_UPLOADED"]
+
+ReasonCategory = Literal["false_positive", "additional_evidence", "disagree_with_signal", "manual_review_complete", "other"]
+
+RiskBand = Literal["high", "medium", "low"]
+
+ClaimStatus = Literal["pending", "scored", "under_review", "approved", "denied", "closed"]
+
+class User(BaseModel):
+    username: str
+    full_name: str
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: User
+
+class VehicleDetails(BaseModel):
+    make: str
+    model: str
+    year: int
+    registration: str
+    estimated_value_gbp: float
+
+class ClaimantHistory(BaseModel):
+    previous_claims: int = 0
+    total_previous_amount_gbp: float = 0.0
+    last_claim_date: Optional[str] = None
+
+class FieldEdit(BaseModel):
+    field_name: str
+    original_value: Optional[str] = None
+    edited_value: str
+    edited_by: str
+    edited_at: datetime
+    reason: Optional[str] = None
+
+class LLMSignal(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    signal_type: str
+    description: str
+    confidence: float
+    detected_at: datetime = Field(default_factory=datetime.utcnow)
+
+class RuleTrigger(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    rule_id: str
+    rule_name: str
+    description: str
+    weight: int
+    triggered_at: datetime = Field(default_factory=datetime.utcnow)
+
+class DocumentInfo(BaseModel):
+    blob_path: str
+    blob_url: str
+    filename: str
+    content_type: str
+    uploaded_at: datetime = Field(default_factory=datetime.utcnow)
+    uploaded_by: str
+
+class Claim(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    claim_id: str
+    claimant_name: str
+    policy_id: str
+    num_previous_claims: int = 0
+    total_previous_claims_gbp: float = 0.0
+    vehicle_make: str
+    vehicle_model: str
+    vehicle_year: int
+    vehicle_registration: str
+    vehicle_estimated_value_gbp: float
+    accident_date: str
+    accident_type: AccidentType
+    accident_location: str
+    claim_amount_gbp: float
+    accident_description: str
+    documents: List[DocumentInfo] = []
+    fraud_score: Optional[int] = None
+    risk_band: Optional[RiskBand] = None
+    status: ClaimStatus = "pending"
+    signals: List[LLMSignal] = []
+    rule_triggers: List[RuleTrigger] = []
+    field_edits: List[FieldEdit] = []
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    scored_at: Optional[datetime] = None
+    created_by: str = "system"
+
+class ClaimCreate(BaseModel):
+    claimant_name: str
+    policy_id: str
+    num_previous_claims: int = 0
+    total_previous_claims_gbp: float = 0.0
+    vehicle_make: str
+    vehicle_model: str
+    vehicle_year: int
+    vehicle_registration: str
+    vehicle_estimated_value_gbp: float
+    accident_date: str
+    accident_type: AccidentType
+    accident_location: str
+    claim_amount_gbp: float
+    accident_description: str
+    ai_extracted_fields: Optional[dict] = None
+
+class ClaimUpdate(BaseModel):
+    claimant_name: Optional[str] = None
+    status: Optional[ClaimStatus] = None
+
+class OverrideRequest(BaseModel):
+    new_score: int = Field(ge=0, le=100)
+    reason_category: ReasonCategory
+    notes: str = Field(min_length=1)
+
+class AuditLog(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    claim_id: str
+    user_name: str
+    action_type: ActionType
+    field_changed: Optional[str] = None
+    old_value: Optional[str] = None
+    new_value: Optional[str] = None
+    reason_category: Optional[str] = None
+    notes: Optional[str] = None
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+class ExtractedFields(BaseModel):
+    claimant_name: Optional[str] = None
+    policy_id: Optional[str] = None
+    num_previous_claims: Optional[int] = None
+    total_previous_claims_gbp: Optional[float] = None
+    vehicle_make: Optional[str] = None
+    vehicle_model: Optional[str] = None
+    vehicle_year: Optional[int] = None
+    vehicle_registration: Optional[str] = None
+    vehicle_estimated_value_gbp: Optional[float] = None
+    accident_date: Optional[str] = None
+    accident_type: Optional[str] = None
+    accident_location: Optional[str] = None
+    claim_amount_gbp: Optional[float] = None
+    accident_description: Optional[str] = None
+    extraction_confidence: float = 0.0
+    extraction_notes: Optional[str] = None
+
+class StatsResponse(BaseModel):
+    total_claims: int
+    high_risk_claims: int
+    medium_risk_claims: int
+    low_risk_claims: int
+    pending_review: int
+    overrides_today: int
