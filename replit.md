@@ -10,26 +10,45 @@ A human-in-the-loop AI decision support system for UK motor insurance fraud anal
 - Neutral, non-judgmental language in AI analysis
 
 ## Technology Stack
-- **Frontend:** React 18 + TypeScript, Wouter routing, TailwindCSS, Shadcn/UI
-- **Backend:** Express.js, PostgreSQL (Drizzle ORM)
-- **AI:** OpenAI GPT-5-mini via Replit AI Integrations
-- **Port:** 5000 (frontend and API)
+- **Frontend:** React 18 + TypeScript, Wouter routing, TailwindCSS, Shadcn/UI (Port 5000)
+- **Backend:** Python FastAPI with Azure services (Port 8000, proxied through Express)
+- **Database:** Azure Cosmos DB
+- **AI:** Azure OpenAI GPT-4o for document extraction and signal detection
+- **Storage:** Azure Blob Storage for document uploads
+- **Authentication:** JWT with hardcoded users
 
 ## Project Structure
 ```
 ├── client/src/
 │   ├── components/       # UI components (risk badges, forms, tables)
-│   ├── pages/           # Route pages (dashboard, claims, stats)
+│   ├── pages/           # Route pages (dashboard, claims, stats, login)
+│   ├── lib/             # Auth context, API client
 │   └── App.tsx          # Main app with sidebar layout
 ├── server/
-│   ├── routes.ts        # API endpoints
-│   ├── storage.ts       # Database operations
-│   ├── llm-analyzer.ts  # OpenAI integration for signal detection
-│   ├── rules-engine.ts  # Configurable scoring rules
-│   └── seed.ts          # Sample UK claims data
+│   └── index.ts         # Express proxy server (routes to FastAPI)
+├── backend/
+│   └── app/
+│       ├── main.py      # FastAPI application entry point
+│       ├── models.py    # Pydantic models
+│       ├── routers/     # API route handlers (auth, claims)
+│       ├── services/    # Business logic (auth, document extraction, rules)
+│       └── db/          # Cosmos DB service
 └── shared/
-    └── schema.ts        # Drizzle schema and Zod validation
+    └── schema.ts        # TypeScript types for frontend
 ```
+
+## Required Environment Variables (Secrets)
+Configure these in Replit Secrets for full functionality:
+- `COSMOS_CONNECTION_STRING` - Azure Cosmos DB connection string
+- `AZURE_OPENAI_ENDPOINT` - Azure OpenAI service endpoint URL
+- `AZURE_OPENAI_KEY` - Azure OpenAI API key
+- `AZURE_STORAGE_CONNECTION_STRING` - Azure Blob Storage connection string
+- `JWT_SECRET` - Secret key for JWT signing (default provided for dev)
+
+## Test Credentials (Hardcoded)
+- Username: `jake`, Password: `password123` → Jake Thompson
+- Username: `rahul`, Password: `password123` → Rahul Patel
+- Username: `navsheen`, Password: `password123` → Navsheen Singh
 
 ## Risk Scoring System
 - **Score Range:** 0-100
@@ -52,6 +71,12 @@ A human-in-the-loop AI decision support system for UK motor insurance fraud anal
 - Multiple AI observations (+12)
 
 ## API Endpoints
+
+### Authentication
+- `POST /auth/login` - Login with username/password, returns JWT token
+- `GET /auth/me` - Get current authenticated user info
+
+### Claims (require JWT authentication)
 - `GET /api/claims` - List all claims (sorted by score)
 - `GET /api/claims/:id` - Get claim with signals, rules, audit logs
 - `POST /api/claims` - Create new claim (triggers async scoring)
@@ -60,15 +85,15 @@ A human-in-the-loop AI decision support system for UK motor insurance fraud anal
 - `PATCH /api/claims/:id/status` - Update claim status
 - `GET /api/stats` - Dashboard statistics
 
-## Database Schema
-- **users** - Analysts and system accounts
-- **claims** - Motor insurance claim records
-- **llm_signals** - AI-detected patterns (neutral observations)
-- **rule_triggers** - Which rules fired for each claim
-- **audit_logs** - Immutable change trail
+### Document Processing
+- `POST /api/documents/extract` - Upload document and extract claim data with GPT-4o
+
+## Database Schema (Cosmos DB)
+- **claims** - Motor insurance claim records with fraud scores
+- **audit-logs** - Immutable change trail
 
 ## LLM Signal Detection
-Uses GPT-5-mini with strict prompting for neutral language:
+Uses GPT-4o with strict prompting for neutral language:
 - No words like "suspicious", "fraudulent", "deceptive"
 - Focus on factual observations only
 - Confidence scores (0.0-1.0) for each signal
@@ -87,13 +112,27 @@ Uses GPT-5-mini with strict prompting for neutral language:
 5. Provides required notes explaining decision
 6. System logs change to audit trail
 
+## Field Edit Tracking
+When AI auto-fills claim forms from documents:
+- Original AI-extracted values are stored
+- User edits are tracked and flagged
+- Audit trail shows all field modifications
+
 ## Recent Changes
+- 2026-02-03: Migrated to Azure-native architecture
+  - Python FastAPI backend replacing Express/TypeScript
+  - Azure Cosmos DB for data storage
+  - Azure OpenAI GPT-4o for document extraction and signals
+  - Azure Blob Storage for document uploads
+  - JWT authentication with 3 hardcoded users
+  - Express proxy server routing to FastAPI
+  - Updated frontend for snake_case API responses
+  - Login page with auth context
+  - Document extraction in Submit Claim form
 - 2026-02-02: Initial implementation complete
   - Full schema with claims, signals, rules, audit logs
   - Professional dark navy sidebar with cyan accents
   - Complete CRUD operations for claims
-  - LLM integration for neutral signal detection
   - Rules engine with 10 configurable rules
   - Override form with mandatory reason/notes
   - Immutable audit trail
-  - 7 seed claims for UK motor insurance scenarios
