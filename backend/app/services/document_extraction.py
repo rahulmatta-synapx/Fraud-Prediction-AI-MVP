@@ -1,10 +1,11 @@
 import os
 import json
 import base64
-from typing import Dict, Any, Optional
-from openai import AzureOpenAI
+from typing import Dict, Any
+from openai import OpenAI
 
-def get_azure_openai_client() -> AzureOpenAI:
+def get_openai_client() -> OpenAI:
+    """Get OpenAI client configured for Azure endpoint."""
     endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT")
     api_key = os.environ.get("AZURE_OPENAI_KEY")
     
@@ -14,138 +15,131 @@ def get_azure_openai_client() -> AzureOpenAI:
     endpoint = endpoint.strip().strip('"').strip("'")
     api_key = api_key.strip().strip('"').strip("'")
     
-    return AzureOpenAI(
-        azure_endpoint=endpoint,
-        api_key=api_key,
-        api_version="2024-02-15-preview"
+    if not endpoint.endswith("/"):
+        endpoint = endpoint + "/"
+    
+    return OpenAI(
+        base_url=endpoint + "openai/v1/",
+        api_key=api_key
     )
 
-def get_deployment_name() -> str:
-    """Get the Azure OpenAI deployment name from env or use default."""
-    return os.environ.get("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4.1").strip().strip('"').strip("'")
-
-EXTRACTION_PROMPT = '''You are a document analysis assistant for UK motor insurance claims.
-Extract the following fields from the uploaded document image. Be accurate and extract only what you can clearly see.
-
-Required fields to extract:
-- claimant_name: Full name of the claimant/policyholder
-- policy_id: Policy number/ID
-- num_previous_claims: Number of previous claims (integer, default 0 if not visible)
-- total_previous_claims_gbp: Total amount of previous claims in GBP (float, default 0.0 if not visible)
-- vehicle_make: Vehicle manufacturer (e.g., BMW, Ford, Toyota)
-- vehicle_model: Vehicle model (e.g., 3 Series, Focus, Corolla)
+EXTRACTION_PROMPT = '''Extract all the following fields from this UK motor insurance claim document accurately. Return only JSON with these exact keys:
+- claimant_name: Full name of the claimant/policyholder (string or null)
+- policy_id: Policy number/ID (string or null)
+- num_previous_claims: Number of previous claims (integer, default 0)
+- total_previous_claims_gbp: Total amount of previous claims in GBP (float, default 0.0)
+- vehicle_make: Vehicle manufacturer e.g. BMW, Ford, Toyota (string or null)
+- vehicle_model: Vehicle model e.g. 3 Series, Focus, Corolla (string or null)
 - vehicle_year: Year of manufacture (integer)
-- vehicle_registration: UK vehicle registration number
+- vehicle_registration: UK vehicle registration number (string or null)
 - vehicle_estimated_value_gbp: Estimated vehicle value in GBP (float)
-- accident_date: Date of accident (YYYY-MM-DD format)
-- accident_type: One of: Collision, Rear-End, Side Impact, Rollover, Hit and Run, Parking Damage, Theft, Vandalism, Fire, Flood Damage
-- accident_location: Location where accident occurred
+- accident_date: Date of accident in YYYY-MM-DD format (string or null)
+- accident_type: One of: Collision, Rear-End, Side Impact, Rollover, Hit and Run, Parking Damage, Theft, Vandalism, Fire, Flood Damage (string or null)
+- accident_location: Location where accident occurred (string or null)
 - claim_amount_gbp: Claimed amount in GBP (float)
-- accident_description: Description of the accident/incident
+- accident_description: Description of the accident/incident (string or null)
+- extraction_confidence: Your confidence in the extraction from 0.0 to 1.0 (float)
+- extraction_notes: Any notes about what could or couldn't be extracted (string)
 
-Return ONLY valid JSON in this exact format:
-{
-  "claimant_name": "string or null",
-  "policy_id": "string or null",
-  "num_previous_claims": 0,
-  "total_previous_claims_gbp": 0.0,
-  "vehicle_make": "string or null",
-  "vehicle_model": "string or null",
-  "vehicle_year": 2024,
-  "vehicle_registration": "string or null",
-  "vehicle_estimated_value_gbp": 0.0,
-  "accident_date": "YYYY-MM-DD or null",
-  "accident_type": "type or null",
-  "accident_location": "string or null",
-  "claim_amount_gbp": 0.0,
-  "accident_description": "string or null",
-  "extraction_confidence": 0.0-1.0,
-  "extraction_notes": "Any notes about what could/couldn't be extracted"
-}
+Return ONLY valid JSON, no other text or markdown.'''
 
-Return ONLY the JSON, no other text.'''
+def get_mime_type(content_type: str, filename: str) -> str:
+    """Determine the correct MIME type for the file."""
+    if content_type == "application/pdf" or filename.lower().endswith(".pdf"):
+        return "application/pdf"
+    elif content_type.startswith("image/jpeg") or filename.lower().endswith((".jpg", ".jpeg")):
+        return "image/jpeg"
+    elif content_type.startswith("image/png") or filename.lower().endswith(".png"):
+        return "image/png"
+    elif content_type.startswith("image/"):
+        return content_type
+    else:
+        return "application/pdf"
 
 async def extract_fields_from_document(
     file_content: bytes,
     content_type: str,
     filename: str
 ) -> Dict[str, Any]:
+    """Extract claim fields from uploaded document using Azure OpenAI Responses API."""
     import asyncio
     
     try:
-        client = get_azure_openai_client()
-        deployment_name = get_deployment_name()
+        client = get_openai_client()
         
-        base64_content = base64.b64encode(file_content).decode("utf-8")
+        base64_string = base64.b64encode(file_content).decode("utf-8")
         
-        if content_type.startswith("image/"):
-            media_type = content_type
-        elif content_type == "application/pdf":
-            media_type = "application/pdf"
-        else:
-            media_type = "image/png"
+        mime_type = get_mime_type(content_type, filename)
         
-        messages = [
-            {
-                "role": "system",
-                "content": "You are a document analysis assistant. Extract structured data from documents. Respond only with valid JSON."
-            },
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": EXTRACTION_PROMPT
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:{media_type};base64,{base64_content}"
-                        }
-                    }
-                ]
-            }
-        ]
+        file_data_url = f"data:{mime_type};base64,{base64_string}"
         
         max_retries = 3
         retry_delay = 2
         last_error = None
+        response = None
         
         for attempt in range(max_retries):
             try:
-                response = client.chat.completions.create(
-                    model=deployment_name,
-                    messages=messages,
-                    temperature=0.1,
-                    max_tokens=1500
+                response = client.responses.create(
+                    model="gpt-4.1",
+                    input=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "input_file",
+                                    "filename": filename or "uploaded_claim.pdf",
+                                    "file_data": file_data_url,
+                                },
+                                {
+                                    "type": "input_text",
+                                    "text": EXTRACTION_PROMPT,
+                                },
+                            ],
+                        },
+                    ]
                 )
                 break
             except Exception as e:
                 error_str = str(e)
                 last_error = e
+                print(f"Extraction attempt {attempt + 1}/{max_retries} failed: {error_str}")
+                
                 if "DeploymentNotFound" in error_str or "404" in error_str:
                     if attempt < max_retries - 1:
-                        print(f"Deployment not found, retrying in {retry_delay}s (attempt {attempt + 1}/{max_retries})")
+                        print(f"Retrying in {retry_delay}s...")
                         await asyncio.sleep(retry_delay)
                         retry_delay *= 2
                         continue
                     else:
                         return {
-                            "error": f"OpenAI deployment '{deployment_name}' not found after {max_retries} retries. Check Azure portal and set AZURE_OPENAI_DEPLOYMENT_NAME.",
+                            "error": f"OpenAI deployment 'gpt-4.1' not found after {max_retries} retries. Check Azure portal.",
                             "extraction_confidence": 0.0
                         }
+                elif "400" in error_str or "BadRequest" in error_str:
+                    return {
+                        "error": f"Invalid request to OpenAI: {error_str}",
+                        "extraction_confidence": 0.0
+                    }
                 else:
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(retry_delay)
+                        retry_delay *= 2
+                        continue
                     raise e
         
-        if last_error and 'response' not in dir():
-            return {"error": str(last_error), "extraction_confidence": 0.0}
+        if response is None:
+            return {"error": str(last_error) if last_error else "Unknown error", "extraction_confidence": 0.0}
         
-        content = response.choices[0].message.content.strip()
+        content = response.output_text.strip()
         
         if content.startswith("```"):
-            content = content.split("```")[1]
-            if content.startswith("json"):
-                content = content[4:]
+            lines = content.split("\n")
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            content = "\n".join(lines)
         content = content.strip()
         
         extracted = json.loads(content)
@@ -171,15 +165,8 @@ async def extract_fields_from_document(
         
     except json.JSONDecodeError as e:
         print(f"JSON parse error: {e}")
-        return {"error": "Failed to parse extraction results", "extraction_confidence": 0.0}
+        return {"error": "Failed to parse extraction results from AI response", "extraction_confidence": 0.0}
     except Exception as e:
         error_str = str(e)
         print(f"Document extraction error: {error_str}")
-        
-        if "DeploymentNotFound" in error_str or "404" in error_str:
-            return {
-                "error": f"OpenAI deployment not found. Check Azure portal and set AZURE_OPENAI_DEPLOYMENT_NAME (current: {get_deployment_name()})",
-                "extraction_confidence": 0.0
-            }
-        
         return {"error": error_str, "extraction_confidence": 0.0}

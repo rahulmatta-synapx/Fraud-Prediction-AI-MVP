@@ -75,7 +75,7 @@ async def analyze_claim_signals(claim: Dict[str, Any]) -> List[Dict[str, Any]]:
         )
         
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4.1",
             messages=[
                 {"role": "system", "content": "You are a neutral claims analysis assistant. Respond only with valid JSON."},
                 {"role": "user", "content": prompt}
