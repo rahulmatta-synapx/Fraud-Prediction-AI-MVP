@@ -134,10 +134,10 @@ export default function Dashboard() {
             ) : (
               <div className="space-y-3">
                 {highRiskClaims.map((claim) => (
-                  <Link key={claim.id} href={`/claims/${claim.id}`}>
+                  <Link key={claim.claim_id} href={`/claims/${claim.claim_id}`}>
                     <div 
                       className="flex items-center justify-between p-3 rounded-lg border border-border hover-elevate cursor-pointer"
-                      data-testid={`priority-claim-${claim.id}`}
+                      data-testid={`priority-claim-${claim.claim_id}`}
                     >
                       <div>
                         <p className="font-medium text-sm">{claim.claim_id || claim.id}</p>

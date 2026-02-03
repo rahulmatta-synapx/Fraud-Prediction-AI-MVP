@@ -16,6 +16,7 @@ import ClaimsList from "@/pages/claims-list";
 import ClaimDetail from "@/pages/claim-detail";
 import SubmitClaim from "@/pages/submit-claim";
 import Stats from "@/pages/stats";
+import HelpPage from "@/pages/help";
 import LoginPage from "@/pages/login";
 import NotFound from "@/pages/not-found";
 
@@ -27,6 +28,7 @@ function Router() {
       <Route path="/claims/:id" component={ClaimDetail} />
       <Route path="/submit" component={SubmitClaim} />
       <Route path="/stats" component={Stats} />
+      <Route path="/help" component={HelpPage} />
       <Route component={NotFound} />
     </Switch>
   );

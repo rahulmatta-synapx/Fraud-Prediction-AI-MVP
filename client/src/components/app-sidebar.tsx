@@ -18,7 +18,7 @@ import {
   Shield,
   AlertTriangle,
   BarChart3,
-  Settings,
+  HelpCircle,
 } from "lucide-react";
 
 const mainItems = [
@@ -119,10 +119,10 @@ export function AppSidebar() {
       <SidebarFooter className="p-4 border-t border-sidebar-border">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild data-testid="nav-settings">
-              <Link href="/settings">
-                <Settings />
-                <span>Settings</span>
+            <SidebarMenuButton asChild data-testid="nav-help">
+              <Link href="/help">
+                <HelpCircle />
+                <span>Help / Manual</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

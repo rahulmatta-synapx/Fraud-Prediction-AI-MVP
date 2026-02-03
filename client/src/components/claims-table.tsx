@@ -127,8 +127,8 @@ export function ClaimsTable({ claims, isLoading }: ClaimsTableProps) {
                 />
               </TableCell>
               <TableCell>
-                <Link href={`/claims/${claim.id}`}>
-                  <Button variant="ghost" size="icon" data-testid={`button-view-claim-${claim.id}`}>
+                <Link href={`/claims/${claim.claim_id}`}>
+                  <Button variant="ghost" size="icon" data-testid={`button-view-claim-${claim.claim_id}`}>
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </Link>

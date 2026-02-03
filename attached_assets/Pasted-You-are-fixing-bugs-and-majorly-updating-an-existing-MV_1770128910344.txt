@@ -1,0 +1,80 @@
+You are fixing bugs and majorly updating an existing MVP Fraud Prediction AI Agent project (React frontend + Azure Functions Python/FastAPI backend).
+
+Current critical bug:
+- After submitting a new claim → it shows claim details immediately (success)
+- But when going to All Claims list → clicking the new claim → shows "Claim Not Found" (404)
+- Logs show: GET /api/claims/{uuid} → 404 Not Found
+→ Likely causes: claim_id vs id mismatch, partition key /claim_id not used correctly in Cosmos query, or frontend redirect uses wrong ID. Fix so claim persists and can be fetched by ID after submit/refresh.
+
+New requirements from lead (implement exactly):
+- Replace current rules engine with these **Core Motor Fraud Rules** (UK-relevant):
+  1. Claim Timing Rules:
+     - IF (Claim_Submission_Date - Incident_Date) > 14 days → trigger Late_Notification (+20)
+     - IF Claim_Submitted BETWEEN 11pm AND 5am → trigger Suspicious_Timing (+10, or add if not specified)
+  2. Policyholder Behaviour Rules:
+     - IF Policy_Start_Date <= Incident_Date <= Policy_Start_Date + 7 days → trigger Early_Policy_Claim (+30)
+     - IF Number of previous claims > 2 in last 12 months → trigger Frequent_Claimant (+25)
+  3. Location & Circumstance Rules:
+     - IF Incident_Location is NULL OR vague ("near home", "local road") → trigger Vague_Location (+15)
+     - IF Accident_Location != Policyholder_Address AND Distance > 100 miles → trigger Unusual_Location (+20)
+  4. Document Consistency Rules:
+     - IF Damage_Description contradicts Accident_Type (e.g. rear damage + "head-on") → trigger Description_Mismatch (+30)
+     - IF Repair_Invoice_Date < Incident_Date → trigger Invalid_Document_Timeline (+25)
+  5. Third-Party Patterns:
+     - IF Same Third_Party appears in >2 claims across different policies → trigger Repeat_Third_Party (+40)
+     - IF Witness_Name matches previous claims → trigger Professional_Witness (+35)
+
+- Fraud Scoring Logic:
+  - Fraud_Score = SUM of triggered rule weights
+  - Cap at 100
+  - Risk bands / thresholds:
+    - < 30 → Low Risk (Auto-approve)
+    - 30–60 → Medium Risk (Manual review)
+    - > 60 → High Risk (SIU referral)
+  - Show band in UI (color-coded: green/yellow/red)
+
+- Add new UI page: **Help / Manual** (accessible from navbar or footer)
+  - Title: "How Fraud Prediction Works"
+  - Sections:
+    - Overview: This is a helper tool only — AI suggests risk score, human decides
+    - Rules explained in detail (list each rule + trigger condition + weight)
+    - Score calculation: Sum of triggered weights, capped at 100
+    - Thresholds & what they mean (Low/Medium/High + actions)
+    - Extraction: AI reads uploaded docs to auto-fill fields (review/edit always required)
+    - Audit logs: All changes tracked with who/when/why
+
+Fixes from previous:
+- Keep single file upload + remove button + "only one allowed" error
+- Use GPT-4.1 everywhere (deployment name)
+- Use secrets: COSMOS_CONNECTION_STRING, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_KEY, AZURE_STORAGE_CONNECTION_STRING
+
+Tasks:
+1. Fix 404 on claim detail:
+   - Ensure claim_id is used consistently (partition key /claim_id)
+   - In frontend: after submit → redirect with correct claim_id
+   - In backend: GET /api/claims/{claim_id} uses container.query_items with correct partition
+
+2. Update rules engine (services/rules_engine.py):
+   - Accept claim data (extracted fields + submission timestamp)
+   - Implement all 10 rules above with exact conditions/weights
+   - Return list of triggered rules + final score + risk band
+
+3. Update claim save / list / detail:
+   - Save triggered rules, score, band, status
+   - List sorted by score DESC
+
+4. Add Help/Manual page in frontend (new route /help or /manual):
+   - Markdown-style content explaining rules, scoring, thresholds
+
+Output:
+- Step-by-step fixes
+- Updated code blocks for:
+  - backend/services/rules_engine.py (new logic)
+  - backend/routers/claims.py (GET /claims/{id} fix)
+  - frontend/src/pages/ClaimDetail.tsx (show band, rules)
+  - frontend/src/pages/Help.tsx (new manual page)
+  - Any other changed files
+- Test steps: submit claim → refresh → click from list → see details + audit
+- Deployment reminder
+
+Generate the fixes and updates now — production-minded, bug-free, and aligned with lead's rules.
