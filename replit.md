@@ -51,24 +51,27 @@ Configure these in Replit Secrets for full functionality:
 - Username: `navsheen`, Password: `password123` → Navsheen Singh
 
 ## Risk Scoring System
-- **Score Range:** 0-100
-- **Risk Bands:**
-  - High Risk: 70-100 (red)
-  - Medium Risk: 40-69 (amber)
-  - Low Risk: 0-39 (green)
+- **Score Range:** 0-100 (sum of triggered rule weights, capped at 100)
+- **Risk Bands & Actions:**
+  - Low Risk: < 30 (green) → Auto-approve
+  - Medium Risk: 30-60 (amber) → Manual review
+  - High Risk: > 60 (red) → SIU referral
 
 ## Rules Engine
-10 configurable rules with weighted scoring:
-- High claim-to-value ratio (+15)
-- Claim exceeds vehicle value (+25)
-- Multiple previous claims (+10)
-- High historical claim amount (+12)
-- New policy pattern (+8)
-- Old vehicle high claim (+10)
-- Theft claim type (+8)
-- Fire damage claim (+10)
-- AI high-confidence signals (+15)
-- Multiple AI observations (+12)
+10 configurable UK motor fraud rules with weighted scoring:
+
+| Rule | Weight | Trigger |
+|------|--------|---------|
+| Late Notification | +20 | Claim submitted >14 days after incident |
+| Suspicious Timing | +10 | Claim submitted between 11pm-5am |
+| Early Policy Claim | +30 | New policy with incident within 7 days |
+| Frequent Claimant | +25 | More than 2 previous claims |
+| Vague Location | +15 | Missing or vague incident location |
+| Unusual Location | +20 | Accident >100 miles from home |
+| Description Mismatch | +30 | Damage description contradicts accident type |
+| Invalid Document Timeline | +25 | Document dates precede incident |
+| Repeat Third Party | +40 | Same third party in multiple claims |
+| Professional Witness | +35 | Same witness in previous claims |
 
 ## API Endpoints
 
@@ -119,10 +122,15 @@ When AI auto-fills claim forms from documents:
 - Audit trail shows all field modifications
 
 ## Recent Changes
+- 2026-02-03: Updated fraud detection rules engine
+  - New 10 UK motor fraud rules with specific weights (10-40 points each)
+  - Updated risk thresholds: <30 Low, 30-60 Medium, >60 High
+  - Added Help/Manual page at /help with comprehensive documentation
+  - Fixed 404 bug: Claims now link using claim_id (CLM-xxx) instead of UUID
 - 2026-02-03: Migrated to Azure-native architecture
   - Python FastAPI backend replacing Express/TypeScript
   - Azure Cosmos DB for data storage
-  - Azure OpenAI GPT-4o for document extraction and signals
+  - Azure OpenAI GPT-4.1 for document extraction and signals
   - Azure Blob Storage for document uploads
   - JWT authentication with 3 hardcoded users
   - Express proxy server routing to FastAPI
