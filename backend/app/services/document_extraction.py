@@ -22,7 +22,7 @@ def get_azure_openai_client() -> AzureOpenAI:
 
 def get_deployment_name() -> str:
     """Get the Azure OpenAI deployment name from env or use default."""
-    return os.environ.get("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o").strip().strip('"').strip("'")
+    return os.environ.get("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4.1").strip().strip('"').strip("'")
 
 EXTRACTION_PROMPT = '''You are a document analysis assistant for UK motor insurance claims.
 Extract the following fields from the uploaded document image. Be accurate and extract only what you can clearly see.

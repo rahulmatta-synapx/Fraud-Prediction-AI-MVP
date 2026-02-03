@@ -13,7 +13,7 @@ A human-in-the-loop AI decision support system for UK motor insurance fraud anal
 - **Frontend:** React 18 + TypeScript, Wouter routing, TailwindCSS, Shadcn/UI (Port 5000)
 - **Backend:** Python FastAPI with Azure services (Port 8000, proxied through Express)
 - **Database:** Azure Cosmos DB
-- **AI:** Azure OpenAI GPT-4o for document extraction and signal detection
+- **AI:** Azure OpenAI GPT-4.1 for document extraction and signal detection
 - **Storage:** Azure Blob Storage for document uploads
 - **Authentication:** JWT with hardcoded users
 
