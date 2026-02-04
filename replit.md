@@ -83,9 +83,10 @@ Configure these in Replit Secrets for full functionality:
 - `GET /api/claims` - List all claims (sorted by score)
 - `GET /api/claims/:id` - Get claim with signals, rules, audit logs
 - `POST /api/claims` - Create new claim (triggers async scoring)
-- `POST /api/claims/:id/rescore` - Re-run AI analysis and rules
-- `POST /api/claims/:id/override` - Override score with reason/notes
-- `PATCH /api/claims/:id/status` - Update claim status
+- `PATCH /api/claims/:id/fields` - Update editable claim fields
+- `POST /api/claims/:id/rescore` - Recalculate fraud score with rules engine
+- `POST /api/claims/:id/approve` - Approve claim with reason/notes
+- `POST /api/claims/:id/reject` - Reject claim with reason/notes
 - `GET /api/stats` - Dashboard statistics
 
 ### Document Processing
@@ -102,18 +103,32 @@ Uses GPT-4o with strict prompting for neutral language:
 - Confidence scores (0.0-1.0) for each signal
 - Signal types: Date Mismatch, Cost Anomaly, Description Gap, etc.
 
-## Override Workflow
-1. Analyst reviews claim and AI recommendations
-2. Clicks "Override Score" button
-3. Adjusts score via slider (0-100)
-4. Selects mandatory reason category:
-   - False Positive
-   - Additional Evidence
-   - Disagree with Signal
-   - Manual Review Complete
-   - Other
-5. Provides required notes explaining decision
-6. System logs change to audit trail
+## Claim Status Workflow
+Claims follow a status-based workflow with four possible states:
+- **needs_review** (yellow) - Default after creation, awaiting analyst review
+- **rescored** (orange) - Claim fields edited and score recalculated
+- **approved** (green) - Claim approved by analyst with reason/notes
+- **rejected** (red) - Claim rejected by analyst with reason/notes
+
+### Workflow Steps:
+1. Claim created → Status: needs_review → AI auto-scores
+2. Analyst reviews claim and AI recommendations
+3. (Optional) Click "Edit Fields" to modify claim data
+4. Click "Save & Rescore" to recalculate score → Status: rescored
+5. Click "Approve" or "Reject" button
+6. Modal requires mandatory reason category and notes
+7. Decision logged to audit trail → Status: approved/rejected
+
+### Decision Reason Categories:
+- Low risk confirmed
+- Additional evidence reviewed
+- Legitimate claim verified
+- Insufficient evidence
+- Pattern matches known fraud
+- Policy violation detected
+- High risk indicators confirmed
+- False positive identified
+- Other
 
 ## Field Edit Tracking
 When AI auto-fills claim forms from documents:
@@ -122,6 +137,13 @@ When AI auto-fills claim forms from documents:
 - Audit trail shows all field modifications
 
 ## Recent Changes
+- 2026-02-04: Production-ready claim workflow refactor
+  - New status-based workflow: needs_review → rescored → approved/rejected
+  - Added editable fields on claim detail page with "Edit Fields" toggle
+  - "Save & Rescore" button recalculates fraud score after field changes
+  - Approve/Reject modal with mandatory reason category and notes
+  - Updated Help page with visual workflow documentation
+  - Full audit trail for FIELD_EDIT, RESCORE, APPROVE, REJECT actions
 - 2026-02-03: Updated fraud detection rules engine
   - New 10 UK motor fraud rules with specific weights (10-40 points each)
   - Updated risk thresholds: <30 Low, 30-60 Medium, >60 High
