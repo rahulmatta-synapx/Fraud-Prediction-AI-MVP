@@ -1,12 +1,13 @@
 # FraudGuard AI - UK Motor Insurance Fraud Prediction Agent
 
 ## Overview
-A human-in-the-loop AI decision support system for UK motor insurance fraud analysts. The system provides risk score recommendations (0-100) but all final decisions are made by qualified human investigators.
+A human-in-the-loop AI decision support system for UK motor insurance fraud analysts. The system provides risk score recommendations (0-100) for analysis purposes. Claims are read-only after submission to ensure data integrity.
 
 **Key Principles:**
-- AI provides recommendations only - humans make all final decisions
-- Score overrides require mandatory reason and notes for audit compliance
-- All changes are logged in an immutable audit trail
+- AI provides risk analysis recommendations only
+- Claims are permanently locked after submission (no editing, rescoring, or decisions)
+- Confirmation modal warns users before final claim submission
+- All changes logged in immutable audit trail
 - Neutral, non-judgmental language in AI analysis
 
 ## Technology Stack
@@ -83,11 +84,16 @@ Configure these in Replit Secrets for full functionality:
 - `GET /api/claims` - List all claims (sorted by score)
 - `GET /api/claims/:id` - Get claim with signals, rules, audit logs
 - `POST /api/claims` - Create new claim (triggers async scoring)
-- `PATCH /api/claims/:id/fields` - Update editable claim fields
-- `POST /api/claims/:id/rescore` - Recalculate fraud score with rules engine
-- `POST /api/claims/:id/approve` - Approve claim with reason/notes
-- `POST /api/claims/:id/reject` - Reject claim with reason/notes
 - `GET /api/stats` - Dashboard statistics
+
+### Disabled Endpoints (return HTTP 403)
+All mutation endpoints are disabled - claims are read-only after submission:
+- `PATCH /api/claims/:id/fields` - DISABLED
+- `POST /api/claims/:id/rescore` - DISABLED
+- `POST /api/claims/:id/approve` - DISABLED
+- `POST /api/claims/:id/reject` - DISABLED
+- `POST /api/claims/:id/override` - DISABLED
+- `PATCH /api/claims/:id/status` - DISABLED
 
 ### Document Processing
 - `POST /api/documents/extract` - Upload document and extract claim data with GPT-4o
@@ -103,47 +109,42 @@ Uses GPT-4o with strict prompting for neutral language:
 - Confidence scores (0.0-1.0) for each signal
 - Signal types: Date Mismatch, Cost Anomaly, Description Gap, etc.
 
-## Claim Status Workflow
-Claims follow a status-based workflow with four possible states:
-- **needs_review** (yellow) - Default after creation, awaiting analyst review
-- **rescored** (orange) - Claim fields edited and score recalculated
-- **approved** (green) - Claim approved by analyst with reason/notes
-- **rejected** (red) - Claim rejected by analyst with reason/notes
+## Claim Status (Read-Only)
+Claims are permanently locked after submission:
+- **needs_review** - Default status after creation
+- Claims cannot be edited, rescored, approved, or rejected after submission
+- Fraud score is calculated once at submission time and cannot be changed
 
-### Workflow Steps:
-1. Claim created → Status: needs_review → AI auto-scores
-2. Analyst reviews claim and AI recommendations
-3. (Optional) Click "Edit Fields" to modify claim data
-4. Click "Save & Rescore" to recalculate score → Status: rescored
-5. Click "Approve" or "Reject" button
-6. Modal requires mandatory reason category and notes
-7. Decision logged to audit trail → Status: approved/rejected
+### Workflow:
+1. User fills out claim form (optionally using AI document extraction)
+2. User reviews all fields before submission
+3. Confirmation modal warns about read-only nature
+4. User confirms → Claim submitted and permanently locked
+5. AI scores claim with rules engine
+6. Analyst reviews claim and AI recommendations (read-only view)
 
-### Decision Reason Categories:
-- Low risk confirmed
-- Additional evidence reviewed
-- Legitimate claim verified
-- Insufficient evidence
-- Pattern matches known fraud
-- Policy violation detected
-- High risk indicators confirmed
-- False positive identified
-- Other
+## Document Upload & Preview
+- Supports PDF and image uploads
+- Live preview: PDF shown in iframe, images shown as img tags
+- AI extracts claim fields from uploaded documents using GPT-4.1
+- User can edit extracted values before submission
+- After submission, all values are locked
 
-## Field Edit Tracking
-When AI auto-fills claim forms from documents:
-- Original AI-extracted values are stored
-- User edits are tracked and flagged
-- Audit trail shows all field modifications
+## Dashboard Features
+- Clickable claim cards with rich information display
+- Cards show: fraud score (color-coded), status badge, claim amount, accident type, vehicle registration, submission date
+- Cards have color-coded backgrounds based on risk level
+- High Risk Priority panel for quick access to high-risk claims
 
 ## Recent Changes
-- 2026-02-04: Production-ready claim workflow refactor
-  - New status-based workflow: needs_review → rescored → approved/rejected
-  - Added editable fields on claim detail page with "Edit Fields" toggle
-  - "Save & Rescore" button recalculates fraud score after field changes
-  - Approve/Reject modal with mandatory reason category and notes
-  - Updated Help page with visual workflow documentation
-  - Full audit trail for FIELD_EDIT, RESCORE, APPROVE, REJECT actions
+- 2026-02-04: Read-only claims implementation
+  - Claims are now permanently locked after submission
+  - Removed all editing, rescoring, approval/rejection functionality
+  - Added confirmation modal before claim submission warning users
+  - Enhanced document upload with live PDF/image preview
+  - Improved dashboard with clickable claim cards showing rich info
+  - Backend enforces read-only with HTTP 403 on all mutation endpoints
+  - Added normalize_value() function to prevent false FIELD_EDIT logs
 - 2026-02-03: Updated fraud detection rules engine
   - New 10 UK motor fraud rules with specific weights (10-40 points each)
   - Updated risk thresholds: <30 Low, 30-60 Medium, >60 High

@@ -1,0 +1,79 @@
+You are fixing and improving an existing MVP Fraud Prediction AI Agent project (React frontend + Azure Functions Python/FastAPI backend).
+
+Current issues and requested changes:
+
+1. After submitting a claim:
+   - Remove ALL editing capability in the Claim Detail / View page — once submitted, the claim is final and locked (no field edits, no override, no rescore).
+   - When user clicks "Submit Claim" on Submit New Claim page → show a confirmation popup/modal:
+     - Message: "You can never change this claim once submitted. Please double-check all fields, extracted data, and documents."
+     - Buttons: "Go Back" (cancel) and "Submit Anyway" (proceed)
+   - After successful submit → redirect to Claim Detail view (read-only mode)
+
+2. On Submit New Claim page:
+   - After user uploads a PDF/image → show a **clear document preview** right below the upload area.
+     - Use react-pdf or iframe/embed for PDF viewer (full page preview or scrollable)
+     - Show filename + preview so user can easily cross-check AI-extracted values against the actual document before submit.
+     - Keep single file only + Remove button (clear file + preview)
+
+3. Remove the "Override Risk Score" card/section completely from Claim Detail page:
+   - It is no longer useful (editing is only allowed before submit; post-submit is read-only).
+   - Remove any override-related UI, buttons, or code references.
+
+4. Improve Dashboard cards:
+   - Make every card **clickable** → clicking anywhere on card opens the full Claim Detail page for that claim.
+   - Add useful info to each card (with current data):
+     - Claim ID
+     - Fraud Score (big number, color-coded: green <30, yellow 30-60, red >60)
+     - Risk Band (Low/Medium/High badge)
+     - Status (Needs Review, Approved, Rejected — badge)
+     - Submission Date/Time
+     - Claim Amount (£)
+     - Accident Type
+     - Claimant Name or Vehicle Reg (short)
+   - Sort list by fraud_score DESC by default
+
+5. Fix unnecessary "Field Edited" logs for unchanged numeric fields:
+   - When comparing AI-extracted vs final user values before submit:
+     - Convert both to same type (e.g. float for amounts, int for years)
+     - Ignore small type differences (e.g. 18500 vs 18500.0 → no log)
+     - Only log FIELD_EDIT if actual value changes (string compare after normalization)
+   - Example: if AI gives "18500" and user leaves it → no log
+     if user changes to "19000" → log "claim_amount_gbp: 18500 → 19000"
+
+6. Make claims clickable everywhere:
+   - In dashboard list/table → make entire row/card clickable (not just arrow icon)
+   - Use React Router Link or onClick to navigate to /claims/{claim_id}
+
+Keep existing:
+- Motor insurance fields only
+- GPT-4.1 vision extraction + single file upload + remove
+- 3 users (Jake, Rahul, Navsheen) with login/JWT
+- Cosmos DB persistence (claims + audit-logs)
+- Blob Storage for docs
+- Audit logging for real changes only
+- Rules engine + scoring as per lead
+
+Tasks:
+1. Backend:
+   - Update POST /claims → after save → return claim_id for redirect
+   - GET /claims/{id} → return full claim (read-only flag if status != "Needs Review")
+
+2. Frontend:
+   - SubmitClaim.tsx: add confirmation modal before submit, show PDF preview (react-pdf), single file strict, remove button
+   - ClaimDetail.tsx: read-only mode (disable inputs), remove override card, show all details + audit history
+   - Dashboard.tsx: make cards/rows clickable, add useful fields + badges (color-coded score/band/status)
+
+3. Audit logging:
+   - Only log FIELD_EDIT if value truly changed after normalization (e.g. Number(aiValue) !== Number(userValue))
+
+Output:
+- Step-by-step fixes
+- Updated code blocks for:
+  - frontend/src/pages/SubmitClaim.tsx (preview + modal + single file)
+  - frontend/src/pages/ClaimDetail.tsx (read-only + remove override)
+  - frontend/src/pages/Dashboard.tsx (clickable cards + better content)
+  - backend/routers/claims.py (if any change needed)
+- Test steps: upload doc → preview → edit field → submit → see modal → submit → check detail (read-only) → go to dashboard → click card → see same detail
+- Any new dependencies (e.g. npm install react-pdf)
+
+Generate the fixes now — make it clean, intuitive, and bug-free.

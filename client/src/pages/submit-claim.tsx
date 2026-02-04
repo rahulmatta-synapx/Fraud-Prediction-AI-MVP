@@ -11,6 +11,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -28,7 +36,7 @@ import {
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, apiRequestFormData } from "@/lib/queryClient";
-import { Car, User, FileText, MapPin, Send, Upload, Sparkles, Loader2, X, Image } from "lucide-react";
+import { Car, User, FileText, MapPin, Send, Upload, Sparkles, Loader2, X, Image, AlertTriangle, Lock } from "lucide-react";
 
 const ACCIDENT_TYPES = [
   { value: "Collision", label: "Collision" },
@@ -77,7 +85,9 @@ export default function SubmitClaim() {
   const [extractedFields, setExtractedFields] = useState<ExtractedFields | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [pendingFormData, setPendingFormData] = useState<SubmitClaimForm | null>(null);
 
   const form = useForm<SubmitClaimForm>({
     resolver: zodResolver(submitClaimSchema),
@@ -118,15 +128,8 @@ export default function SubmitClaim() {
     const file = files[0];
     setUploadedFile(file);
     
-    if (file.type.startsWith("image/")) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setImagePreview(e.target?.result as string);
-      };
-      reader.readAsDataURL(file);
-    } else {
-      setImagePreview(null);
-    }
+    const objectUrl = URL.createObjectURL(file);
+    setFilePreviewUrl(objectUrl);
     
     setIsExtracting(true);
     try {
@@ -190,9 +193,12 @@ export default function SubmitClaim() {
   };
 
   const handleRemoveFile = () => {
+    if (filePreviewUrl) {
+      URL.revokeObjectURL(filePreviewUrl);
+    }
     setUploadedFile(null);
     setExtractedFields(null);
-    setImagePreview(null);
+    setFilePreviewUrl(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -227,6 +233,18 @@ export default function SubmitClaim() {
       });
     },
   });
+
+  const handleFormSubmit = (data: SubmitClaimForm) => {
+    setPendingFormData(data);
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmSubmit = () => {
+    if (pendingFormData) {
+      submitMutation.mutate(pendingFormData);
+      setShowConfirmModal(false);
+    }
+  };
 
   const hasAiValue = (field: string) => {
     return extractedFields && extractedFields[field] !== null && extractedFields[field] !== undefined;
@@ -309,37 +327,60 @@ export default function SubmitClaim() {
             </div>
             
             {uploadedFile && (
-              <div className="flex items-start gap-4 p-3 bg-muted/50 rounded-lg">
-                {imagePreview ? (
-                  <img 
-                    src={imagePreview} 
-                    alt="Document preview" 
-                    className="w-20 h-20 object-cover rounded border"
-                    data-testid="image-preview"
-                  />
-                ) : (
-                  <div className="w-20 h-20 flex items-center justify-center bg-muted rounded border">
-                    <FileText className="h-8 w-8 text-muted-foreground" />
+              <div className="space-y-4">
+                <div className="flex items-start gap-4 p-3 bg-muted/50 rounded-lg">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-muted-foreground" />
+                      <p className="font-medium truncate" data-testid="text-filename">{uploadedFile.name}</p>
+                    </div>
+                    <p className="text-sm text-muted-foreground ml-7">
+                      {(uploadedFile.size / 1024).toFixed(1)} KB
+                    </p>
+                    <div className="ml-7 mt-1">
+                      {uploadedFile.type.startsWith("image/") && (
+                        <Badge variant="secondary">
+                          <Image className="h-3 w-3 mr-1" />
+                          Image
+                        </Badge>
+                      )}
+                      {uploadedFile.type === "application/pdf" && (
+                        <Badge variant="secondary">
+                          <FileText className="h-3 w-3 mr-1" />
+                          PDF
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {filePreviewUrl && (
+                  <div className="border rounded-lg overflow-hidden bg-muted/30" data-testid="document-preview">
+                    <div className="p-2 border-b bg-muted/50">
+                      <p className="text-sm font-medium">Document Preview</p>
+                      <p className="text-xs text-muted-foreground">Review the document to verify AI-extracted values</p>
+                    </div>
+                    {uploadedFile.type.startsWith("image/") ? (
+                      <div className="p-4 flex justify-center">
+                        <img 
+                          src={filePreviewUrl} 
+                          alt="Document preview" 
+                          className="max-w-full max-h-96 object-contain rounded border"
+                          data-testid="image-preview"
+                        />
+                      </div>
+                    ) : uploadedFile.type === "application/pdf" ? (
+                      <div className="h-96 w-full">
+                        <iframe
+                          src={filePreviewUrl}
+                          className="w-full h-full"
+                          title="PDF Preview"
+                          data-testid="pdf-preview"
+                        />
+                      </div>
+                    ) : null}
                   </div>
                 )}
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate" data-testid="text-filename">{uploadedFile.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {(uploadedFile.size / 1024).toFixed(1)} KB
-                  </p>
-                  {uploadedFile.type.startsWith("image/") && (
-                    <Badge variant="secondary" className="mt-1">
-                      <Image className="h-3 w-3 mr-1" />
-                      Image
-                    </Badge>
-                  )}
-                  {uploadedFile.type === "application/pdf" && (
-                    <Badge variant="secondary" className="mt-1">
-                      <FileText className="h-3 w-3 mr-1" />
-                      PDF
-                    </Badge>
-                  )}
-                </div>
               </div>
             )}
           </div>
@@ -358,7 +399,7 @@ export default function SubmitClaim() {
       </Card>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit((data) => submitMutation.mutate(data))} className="space-y-6">
+        <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -753,6 +794,58 @@ export default function SubmitClaim() {
           </div>
         </form>
       </Form>
+
+      <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Confirm Submission
+            </DialogTitle>
+            <DialogDescription className="space-y-3 pt-2">
+              <div className="p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <Lock className="h-4 w-4 text-amber-600 mt-0.5" />
+                  <p className="text-sm text-amber-800 dark:text-amber-200">
+                    <strong>Important:</strong> You cannot change this claim once submitted. 
+                    Please double-check all fields, extracted data, and documents before proceeding.
+                  </p>
+                </div>
+              </div>
+              <p className="text-sm">
+                The claim will be locked and AI analysis will begin immediately after submission.
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowConfirmModal(false)}
+              data-testid="button-go-back"
+            >
+              Go Back
+            </Button>
+            <Button
+              onClick={handleConfirmSubmit}
+              disabled={submitMutation.isPending}
+              className="gap-2"
+              data-testid="button-submit-anyway"
+            >
+              {submitMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4" />
+                  Submit Anyway
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

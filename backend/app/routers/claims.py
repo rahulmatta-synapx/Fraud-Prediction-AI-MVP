@@ -17,6 +17,27 @@ from ..db.cosmos import get_cosmos_db
 
 router = APIRouter(prefix="/api", tags=["Claims"])
 
+def normalize_value(value):
+    """Normalize a value for comparison - handles numeric type differences."""
+    if value is None:
+        return None
+    
+    str_val = str(value).strip()
+    
+    try:
+        float_val = float(str_val)
+        if float_val == int(float_val):
+            return int(float_val)
+        return float_val
+    except (ValueError, TypeError):
+        return str_val
+
+def values_are_equal(val1, val2) -> bool:
+    """Compare two values after normalization to avoid false positives from type differences."""
+    norm1 = normalize_value(val1)
+    norm2 = normalize_value(val2)
+    return norm1 == norm2
+
 def generate_claim_id() -> str:
     return f"CLM-{datetime.utcnow().strftime('%Y')}-{uuid.uuid4().hex[:8].upper()}"
 
@@ -101,7 +122,7 @@ async def create_claim(
                 continue
             current_value = getattr(claim_data, field_name, None)
             if current_value is not None and ai_value is not None:
-                if str(current_value) != str(ai_value):
+                if not values_are_equal(current_value, ai_value):
                     claim["field_edits"].append({
                         "field_name": field_name,
                         "original_value": str(ai_value),
@@ -165,62 +186,11 @@ async def update_claim_fields(
     update: ClaimFieldsUpdate,
     current_user: TokenData = Depends(get_current_user)
 ):
-    """Update claim fields and log changes to audit trail."""
-    db = get_cosmos_db()
-    claim = db.get_claim(claim_id)
-    if not claim:
-        raise HTTPException(status_code=404, detail="Claim not found")
-    
-    if claim.get("status") in ["approved", "rejected"]:
-        raise HTTPException(
-            status_code=400, 
-            detail="Cannot edit fields on approved/rejected claims"
-        )
-    
-    update_data = update.model_dump(exclude_none=True)
-    changed_fields = []
-    
-    for field_name, new_value in update_data.items():
-        old_value = claim.get(field_name)
-        if str(old_value) != str(new_value):
-            claim[field_name] = new_value
-            changed_fields.append({
-                "field": field_name,
-                "old": old_value,
-                "new": new_value
-            })
-            
-            if "field_edits" not in claim:
-                claim["field_edits"] = []
-            claim["field_edits"].append({
-                "field_name": field_name,
-                "original_value": str(old_value) if old_value else None,
-                "edited_value": str(new_value),
-                "edited_by": current_user.full_name,
-                "edited_at": datetime.utcnow().isoformat(),
-                "reason": "Manual edit during review"
-            })
-            
-            db.save_audit_log({
-                "id": str(uuid.uuid4()),
-                "claim_id": claim_id,
-                "user_name": current_user.full_name,
-                "action_type": "FIELD_EDIT",
-                "field_changed": field_name,
-                "old_value": str(old_value) if old_value else None,
-                "new_value": str(new_value),
-                "notes": f"Field edited during review",
-                "timestamp": datetime.utcnow().isoformat()
-            })
-    
-    if changed_fields:
-        claim["updated_at"] = datetime.utcnow().isoformat()
-        db.save_claim(claim)
-    
-    audit_logs = db.get_audit_logs(claim_id)
-    claim["audit_logs"] = audit_logs
-    
-    return claim
+    """Update claim fields - DISABLED: Claims are read-only after submission."""
+    raise HTTPException(
+        status_code=403, 
+        detail="Claims are read-only after submission and cannot be edited"
+    )
 
 @router.post("/claims/{claim_id}/rescore")
 async def rescore_claim(
@@ -228,52 +198,11 @@ async def rescore_claim(
     request: Optional[RescoreRequest] = None,
     current_user: TokenData = Depends(get_current_user)
 ):
-    """Re-run rules engine on current claim data and update score."""
-    db = get_cosmos_db()
-    claim = db.get_claim(claim_id)
-    if not claim:
-        raise HTTPException(status_code=404, detail="Claim not found")
-    
-    if claim.get("status") in ["approved", "rejected"]:
-        raise HTTPException(
-            status_code=400, 
-            detail="Cannot rescore approved/rejected claims"
-        )
-    
-    old_score = claim.get("fraud_score", 0)
-    old_risk_band = claim.get("risk_band", "low")
-    
-    signals = await analyze_claim_signals(claim)
-    rules_result = run_rules_engine(claim, signals)
-    
-    claim["signals"] = signals
-    claim["fraud_score"] = rules_result["fraud_score"]
-    claim["risk_band"] = rules_result["risk_band"]
-    claim["rule_triggers"] = rules_result["triggered_rules"]
-    claim["status"] = "rescored"
-    claim["scored_at"] = datetime.utcnow().isoformat()
-    claim["updated_at"] = datetime.utcnow().isoformat()
-    
-    db.save_claim(claim)
-    
-    notes = request.notes if request and request.notes else f"Re-scored by {current_user.full_name}"
-    
-    db.save_audit_log({
-        "id": str(uuid.uuid4()),
-        "claim_id": claim_id,
-        "user_name": current_user.full_name,
-        "action_type": "RESCORE",
-        "field_changed": "fraud_score",
-        "old_value": f"{old_score} ({old_risk_band})",
-        "new_value": f"{rules_result['fraud_score']} ({rules_result['risk_band']})",
-        "notes": notes,
-        "timestamp": datetime.utcnow().isoformat()
-    })
-    
-    audit_logs = db.get_audit_logs(claim_id)
-    claim["audit_logs"] = audit_logs
-    
-    return claim
+    """Rescore claim - DISABLED: Claims are read-only after submission."""
+    raise HTTPException(
+        status_code=403, 
+        detail="Claims are read-only after submission and cannot be rescored"
+    )
 
 @router.post("/claims/{claim_id}/approve")
 async def approve_claim(
@@ -281,46 +210,11 @@ async def approve_claim(
     request: DecisionRequest,
     current_user: TokenData = Depends(get_current_user)
 ):
-    """Approve the claim with mandatory reason and notes."""
-    db = get_cosmos_db()
-    claim = db.get_claim(claim_id)
-    if not claim:
-        raise HTTPException(status_code=404, detail="Claim not found")
-    
-    if claim.get("status") in ["approved", "rejected"]:
-        raise HTTPException(
-            status_code=400, 
-            detail="Claim has already been decided"
-        )
-    
-    old_status = claim.get("status")
-    
-    claim["status"] = "approved"
-    claim["decision_reason"] = request.reason
-    claim["decision_notes"] = request.notes
-    claim["decided_by"] = current_user.full_name
-    claim["decided_at"] = datetime.utcnow().isoformat()
-    claim["updated_at"] = datetime.utcnow().isoformat()
-    
-    db.save_claim(claim)
-    
-    db.save_audit_log({
-        "id": str(uuid.uuid4()),
-        "claim_id": claim_id,
-        "user_name": current_user.full_name,
-        "action_type": "APPROVE",
-        "field_changed": "status",
-        "old_value": old_status,
-        "new_value": "approved",
-        "reason_category": request.reason,
-        "notes": request.notes,
-        "timestamp": datetime.utcnow().isoformat()
-    })
-    
-    audit_logs = db.get_audit_logs(claim_id)
-    claim["audit_logs"] = audit_logs
-    
-    return claim
+    """Approve claim - DISABLED: Claims are read-only after submission."""
+    raise HTTPException(
+        status_code=403, 
+        detail="Claims are read-only after submission. Decisions are not supported in this version."
+    )
 
 @router.post("/claims/{claim_id}/reject")
 async def reject_claim(
@@ -328,46 +222,11 @@ async def reject_claim(
     request: DecisionRequest,
     current_user: TokenData = Depends(get_current_user)
 ):
-    """Reject the claim with mandatory reason and notes."""
-    db = get_cosmos_db()
-    claim = db.get_claim(claim_id)
-    if not claim:
-        raise HTTPException(status_code=404, detail="Claim not found")
-    
-    if claim.get("status") in ["approved", "rejected"]:
-        raise HTTPException(
-            status_code=400, 
-            detail="Claim has already been decided"
-        )
-    
-    old_status = claim.get("status")
-    
-    claim["status"] = "rejected"
-    claim["decision_reason"] = request.reason
-    claim["decision_notes"] = request.notes
-    claim["decided_by"] = current_user.full_name
-    claim["decided_at"] = datetime.utcnow().isoformat()
-    claim["updated_at"] = datetime.utcnow().isoformat()
-    
-    db.save_claim(claim)
-    
-    db.save_audit_log({
-        "id": str(uuid.uuid4()),
-        "claim_id": claim_id,
-        "user_name": current_user.full_name,
-        "action_type": "REJECT",
-        "field_changed": "status",
-        "old_value": old_status,
-        "new_value": "rejected",
-        "reason_category": request.reason,
-        "notes": request.notes,
-        "timestamp": datetime.utcnow().isoformat()
-    })
-    
-    audit_logs = db.get_audit_logs(claim_id)
-    claim["audit_logs"] = audit_logs
-    
-    return claim
+    """Reject claim - DISABLED: Claims are read-only after submission."""
+    raise HTTPException(
+        status_code=403, 
+        detail="Claims are read-only after submission. Decisions are not supported in this version."
+    )
 
 @router.post("/claims/{claim_id}/override")
 async def override_score(
@@ -375,39 +234,11 @@ async def override_score(
     override: OverrideRequest,
     current_user: TokenData = Depends(get_current_user)
 ):
-    """Legacy override endpoint - kept for backward compatibility."""
-    db = get_cosmos_db()
-    claim = db.get_claim(claim_id)
-    if not claim:
-        raise HTTPException(status_code=404, detail="Claim not found")
-    
-    old_score = claim.get("fraud_score", 0)
-    new_score = override.new_score
-    new_risk_band = calculate_risk_band(new_score)
-    
-    claim["fraud_score"] = new_score
-    claim["risk_band"] = new_risk_band
-    claim["updated_at"] = datetime.utcnow().isoformat()
-    
-    db.save_claim(claim)
-    
-    db.save_audit_log({
-        "id": str(uuid.uuid4()),
-        "claim_id": claim_id,
-        "user_name": current_user.full_name,
-        "action_type": "OVERRIDE",
-        "field_changed": "fraud_score",
-        "old_value": str(old_score),
-        "new_value": str(new_score),
-        "reason_category": override.reason_category,
-        "notes": override.notes,
-        "timestamp": datetime.utcnow().isoformat()
-    })
-    
-    audit_logs = db.get_audit_logs(claim_id)
-    claim["audit_logs"] = audit_logs
-    
-    return claim
+    """Override score - DISABLED: Claims are read-only after submission."""
+    raise HTTPException(
+        status_code=403, 
+        detail="Claims are read-only after submission and cannot be overridden"
+    )
 
 @router.patch("/claims/{claim_id}/status")
 async def update_status(
@@ -415,30 +246,11 @@ async def update_status(
     update: ClaimUpdate,
     current_user: TokenData = Depends(get_current_user)
 ):
-    db = get_cosmos_db()
-    claim = db.get_claim(claim_id)
-    if not claim:
-        raise HTTPException(status_code=404, detail="Claim not found")
-    
-    if update.status:
-        old_status = claim.get("status")
-        claim["status"] = update.status
-        claim["updated_at"] = datetime.utcnow().isoformat()
-        
-        db.save_claim(claim)
-        
-        db.save_audit_log({
-            "id": str(uuid.uuid4()),
-            "claim_id": claim_id,
-            "user_name": current_user.full_name,
-            "action_type": "STATUS_CHANGE",
-            "field_changed": "status",
-            "old_value": old_status,
-            "new_value": update.status,
-            "timestamp": datetime.utcnow().isoformat()
-        })
-    
-    return claim
+    """Update status - DISABLED: Claims are read-only after submission."""
+    raise HTTPException(
+        status_code=403, 
+        detail="Claims are read-only after submission and cannot be modified"
+    )
 
 @router.post("/extract-fields")
 async def extract_fields(
