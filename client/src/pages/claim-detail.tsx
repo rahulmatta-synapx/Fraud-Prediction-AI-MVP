@@ -1,15 +1,33 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ScoreDisplay } from "@/components/score-display";
 import { RiskBadge } from "@/components/risk-badge";
 import { StatusBadge } from "@/components/status-badge";
-import { OverrideForm } from "@/components/override-form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import {
@@ -24,11 +42,13 @@ import {
   Scale,
   History,
   RefreshCw,
-  Eye,
   CheckCircle2,
+  XCircle,
   AlertTriangle,
   Sparkles,
   ExternalLink,
+  Save,
+  Edit3,
 } from "lucide-react";
 
 interface Claim {
@@ -98,24 +118,92 @@ interface Claim {
   updated_at: string;
   scored_at: string | null;
   created_by: string;
+  decision_reason?: string;
+  decision_notes?: string;
+  decided_by?: string;
+  decided_at?: string;
 }
+
+interface EditedFields {
+  claimant_name?: string;
+  policy_id?: string;
+  num_previous_claims?: number;
+  total_previous_claims_gbp?: number;
+  vehicle_make?: string;
+  vehicle_model?: string;
+  vehicle_year?: number;
+  vehicle_registration?: string;
+  vehicle_estimated_value_gbp?: number;
+  accident_date?: string;
+  accident_type?: string;
+  accident_location?: string;
+  claim_amount_gbp?: number;
+  accident_description?: string;
+}
+
+const REASON_OPTIONS = [
+  { value: "low_risk_confirmed", label: "Low risk confirmed" },
+  { value: "evidence_supports", label: "Evidence supports claim" },
+  { value: "additional_evidence", label: "Additional evidence provided" },
+  { value: "false_positive", label: "False positive detected" },
+  { value: "manual_review_complete", label: "Manual review complete" },
+  { value: "high_risk_siu_referral", label: "High risk - SIU referral" },
+  { value: "insufficient_evidence", label: "Insufficient evidence" },
+  { value: "disagree_with_signal", label: "Disagree with AI signal" },
+  { value: "other", label: "Other" },
+];
+
+const ACCIDENT_TYPES = [
+  "Collision", "Rear-End", "Side Impact", "Rollover", "Hit and Run",
+  "Parking Damage", "Theft", "Vandalism", "Fire", "Flood Damage"
+];
 
 export default function ClaimDetail() {
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedFields, setEditedFields] = useState<EditedFields>({});
+  const [decisionModal, setDecisionModal] = useState<"approve" | "reject" | null>(null);
+  const [decisionReason, setDecisionReason] = useState("");
+  const [decisionNotes, setDecisionNotes] = useState("");
 
   const { data: claim, isLoading, error } = useQuery<Claim>({
     queryKey: ["/api/claims", id],
   });
 
+  const updateFields = useMutation({
+    mutationFn: async (fields: EditedFields) => {
+      return apiRequest("PATCH", `/api/claims/${id}/fields`, fields);
+    },
+    onSuccess: () => {
+      toast({ title: "Fields updated successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/claims", id] });
+      setEditedFields({});
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update fields",
+        variant: "destructive",
+      });
+    },
+  });
+
   const rescore = useMutation({
     mutationFn: async () => {
+      if (Object.keys(editedFields).length > 0) {
+        await apiRequest("PATCH", `/api/claims/${id}/fields`, editedFields);
+      }
       return apiRequest("POST", `/api/claims/${id}/rescore`, {});
     },
     onSuccess: () => {
       toast({ title: "Claim rescored successfully" });
       queryClient.invalidateQueries({ queryKey: ["/api/claims", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/claims"] });
+      setEditedFields({});
+      setIsEditing(false);
     },
     onError: (error) => {
       toast({
@@ -126,23 +214,68 @@ export default function ClaimDetail() {
     },
   });
 
-  const updateStatus = useMutation({
-    mutationFn: async (newStatus: string) => {
-      return apiRequest("PATCH", `/api/claims/${id}/status`, { status: newStatus });
+  const approveClaim = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", `/api/claims/${id}/approve`, {
+        reason: decisionReason,
+        notes: decisionNotes,
+      });
     },
     onSuccess: () => {
-      toast({ title: "Status updated successfully" });
+      toast({ title: "Claim approved successfully" });
       queryClient.invalidateQueries({ queryKey: ["/api/claims", id] });
       queryClient.invalidateQueries({ queryKey: ["/api/claims"] });
+      setDecisionModal(null);
+      setDecisionReason("");
+      setDecisionNotes("");
     },
     onError: (error) => {
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update status",
+        description: error instanceof Error ? error.message : "Failed to approve claim",
         variant: "destructive",
       });
     },
   });
+
+  const rejectClaim = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", `/api/claims/${id}/reject`, {
+        reason: decisionReason,
+        notes: decisionNotes,
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Claim rejected" });
+      queryClient.invalidateQueries({ queryKey: ["/api/claims", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/claims"] });
+      setDecisionModal(null);
+      setDecisionReason("");
+      setDecisionNotes("");
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to reject claim",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleFieldChange = (field: keyof EditedFields, value: string | number) => {
+    setEditedFields(prev => ({ ...prev, [field]: value }));
+  };
+
+  const getFieldValue = (field: keyof EditedFields): string | number => {
+    if (field in editedFields) {
+      return editedFields[field] as string | number;
+    }
+    return claim ? (claim[field] as string | number) : "";
+  };
+
+  const hasChanges = Object.keys(editedFields).length > 0;
+  const canEdit = claim?.status !== "approved" && claim?.status !== "rejected";
+  const canDecide = claim?.status !== "approved" && claim?.status !== "rejected";
 
   if (isLoading) {
     return (
@@ -180,9 +313,12 @@ export default function ClaimDetail() {
       CLAIM_CREATED: "Claim Created",
       SCORE_GENERATED: "Score Generated",
       OVERRIDE: "Score Override",
+      RESCORE: "Rescored",
       FIELD_EDIT: "Field Edited",
       STATUS_CHANGE: "Status Changed",
       DOCUMENT_UPLOADED: "Document Uploaded",
+      APPROVE: "Approved",
+      REJECT: "Rejected",
     };
     return mapping[action] || action;
   };
@@ -192,9 +328,12 @@ export default function ClaimDetail() {
       case "CLAIM_CREATED": return <FileText className="h-4 w-4" />;
       case "SCORE_GENERATED": return <Brain className="h-4 w-4" />;
       case "OVERRIDE": return <AlertTriangle className="h-4 w-4" />;
-      case "FIELD_EDIT": return <User className="h-4 w-4" />;
+      case "RESCORE": return <RefreshCw className="h-4 w-4" />;
+      case "FIELD_EDIT": return <Edit3 className="h-4 w-4" />;
       case "STATUS_CHANGE": return <CheckCircle2 className="h-4 w-4" />;
       case "DOCUMENT_UPLOADED": return <FileText className="h-4 w-4" />;
+      case "APPROVE": return <CheckCircle2 className="h-4 w-4 text-green-600" />;
+      case "REJECT": return <XCircle className="h-4 w-4 text-red-600" />;
       default: return <History className="h-4 w-4" />;
     }
   };
@@ -218,37 +357,49 @@ export default function ClaimDetail() {
             </p>
           </div>
         </div>
-        <div className="flex gap-3">
-          <Button 
-            variant="outline" 
-            onClick={() => rescore.mutate()}
-            disabled={rescore.isPending}
-            className="gap-2"
-            data-testid="button-rescore"
-          >
-            <RefreshCw className={`h-4 w-4 ${rescore.isPending ? "animate-spin" : ""}`} />
-            Rescore
-          </Button>
-          {claim.status !== "under_review" && claim.status !== "approved" && claim.status !== "denied" && (
-            <Button 
-              variant="outline"
-              onClick={() => updateStatus.mutate("under_review")}
-              className="gap-2"
-              data-testid="button-start-review"
-            >
-              <Eye className="h-4 w-4" />
-              Start Review
-            </Button>
+        <div className="flex gap-3 flex-wrap">
+          {canEdit && (
+            <>
+              <Button 
+                variant="outline" 
+                onClick={() => setIsEditing(!isEditing)}
+                className="gap-2"
+                data-testid="button-toggle-edit"
+              >
+                <Edit3 className="h-4 w-4" />
+                {isEditing ? "Cancel Edit" : "Edit Fields"}
+              </Button>
+              <Button 
+                onClick={() => rescore.mutate()}
+                disabled={rescore.isPending}
+                className="gap-2"
+                data-testid="button-save-rescore"
+              >
+                <RefreshCw className={`h-4 w-4 ${rescore.isPending ? "animate-spin" : ""}`} />
+                {hasChanges ? "Save & Rescore" : "Rescore"}
+              </Button>
+            </>
           )}
-          {claim.status === "under_review" && (
-            <Button 
-              onClick={() => updateStatus.mutate("approved")}
-              className="gap-2"
-              data-testid="button-approve"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              Approve
-            </Button>
+          {canDecide && (
+            <>
+              <Button 
+                variant="outline"
+                onClick={() => setDecisionModal("reject")}
+                className="gap-2 border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                data-testid="button-reject"
+              >
+                <XCircle className="h-4 w-4" />
+                Reject
+              </Button>
+              <Button 
+                onClick={() => setDecisionModal("approve")}
+                className="gap-2 bg-green-600 hover:bg-green-700"
+                data-testid="button-approve"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                Approve
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -260,72 +411,238 @@ export default function ClaimDetail() {
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5 text-primary" />
                 Claim Details
+                {isEditing && (
+                  <Badge variant="secondary" className="ml-2">Editing</Badge>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-6 md:grid-cols-2">
-                <div className="space-y-4">
-                  <div className="flex items-start gap-3">
-                    <PoundSterling className="h-5 w-5 text-muted-foreground mt-0.5" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Claim Amount</p>
-                      <p className="text-xl font-bold">
-                        £{Number(claim.claim_amount_gbp).toLocaleString("en-GB", { minimumFractionDigits: 2 })}
+              {isEditing ? (
+                <div className="space-y-6">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="claimant_name">Claimant Name</Label>
+                      <Input
+                        id="claimant_name"
+                        value={getFieldValue("claimant_name")}
+                        onChange={(e) => handleFieldChange("claimant_name", e.target.value)}
+                        data-testid="input-claimant-name"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="policy_id">Policy ID</Label>
+                      <Input
+                        id="policy_id"
+                        value={getFieldValue("policy_id")}
+                        onChange={(e) => handleFieldChange("policy_id", e.target.value)}
+                        data-testid="input-policy-id"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="claim_amount">Claim Amount (£)</Label>
+                      <Input
+                        id="claim_amount"
+                        type="number"
+                        value={getFieldValue("claim_amount_gbp")}
+                        onChange={(e) => handleFieldChange("claim_amount_gbp", parseFloat(e.target.value) || 0)}
+                        data-testid="input-claim-amount"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="accident_date">Accident Date</Label>
+                      <Input
+                        id="accident_date"
+                        type="date"
+                        value={getFieldValue("accident_date")}
+                        onChange={(e) => handleFieldChange("accident_date", e.target.value)}
+                        data-testid="input-accident-date"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="accident_type">Accident Type</Label>
+                      <Select 
+                        value={getFieldValue("accident_type") as string}
+                        onValueChange={(value) => handleFieldChange("accident_type", value)}
+                      >
+                        <SelectTrigger data-testid="select-accident-type">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ACCIDENT_TYPES.map((type) => (
+                            <SelectItem key={type} value={type}>{type}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="accident_location">Accident Location</Label>
+                      <Input
+                        id="accident_location"
+                        value={getFieldValue("accident_location")}
+                        onChange={(e) => handleFieldChange("accident_location", e.target.value)}
+                        data-testid="input-accident-location"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="num_previous_claims">Previous Claims</Label>
+                      <Input
+                        id="num_previous_claims"
+                        type="number"
+                        value={getFieldValue("num_previous_claims")}
+                        onChange={(e) => handleFieldChange("num_previous_claims", parseInt(e.target.value) || 0)}
+                        data-testid="input-previous-claims"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="total_previous_claims_gbp">Previous Claims Total (£)</Label>
+                      <Input
+                        id="total_previous_claims_gbp"
+                        type="number"
+                        value={getFieldValue("total_previous_claims_gbp")}
+                        onChange={(e) => handleFieldChange("total_previous_claims_gbp", parseFloat(e.target.value) || 0)}
+                        data-testid="input-previous-claims-total"
+                      />
+                    </div>
+                  </div>
+                  <div className="border-t pt-4">
+                    <h4 className="font-medium mb-3 flex items-center gap-2">
+                      <Car className="h-4 w-4" /> Vehicle Details
+                    </h4>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="vehicle_make">Make</Label>
+                        <Input
+                          id="vehicle_make"
+                          value={getFieldValue("vehicle_make")}
+                          onChange={(e) => handleFieldChange("vehicle_make", e.target.value)}
+                          data-testid="input-vehicle-make"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="vehicle_model">Model</Label>
+                        <Input
+                          id="vehicle_model"
+                          value={getFieldValue("vehicle_model")}
+                          onChange={(e) => handleFieldChange("vehicle_model", e.target.value)}
+                          data-testid="input-vehicle-model"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="vehicle_year">Year</Label>
+                        <Input
+                          id="vehicle_year"
+                          type="number"
+                          value={getFieldValue("vehicle_year")}
+                          onChange={(e) => handleFieldChange("vehicle_year", parseInt(e.target.value) || 0)}
+                          data-testid="input-vehicle-year"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="vehicle_registration">Registration</Label>
+                        <Input
+                          id="vehicle_registration"
+                          value={getFieldValue("vehicle_registration")}
+                          onChange={(e) => handleFieldChange("vehicle_registration", e.target.value)}
+                          data-testid="input-vehicle-registration"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="vehicle_estimated_value_gbp">Estimated Value (£)</Label>
+                        <Input
+                          id="vehicle_estimated_value_gbp"
+                          type="number"
+                          value={getFieldValue("vehicle_estimated_value_gbp")}
+                          onChange={(e) => handleFieldChange("vehicle_estimated_value_gbp", parseFloat(e.target.value) || 0)}
+                          data-testid="input-vehicle-value"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="accident_description">Accident Description</Label>
+                    <Textarea
+                      id="accident_description"
+                      value={getFieldValue("accident_description")}
+                      onChange={(e) => handleFieldChange("accident_description", e.target.value)}
+                      rows={4}
+                      data-testid="input-accident-description"
+                    />
+                  </div>
+                  {hasChanges && (
+                    <div className="p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg">
+                      <p className="text-sm text-amber-800 dark:text-amber-200">
+                        You have unsaved changes. Click "Save & Rescore" to save changes and recalculate the fraud score.
                       </p>
                     </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Accident Date</p>
-                      <p className="font-medium">{format(new Date(claim.accident_date), "dd MMMM yyyy")}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Location</p>
-                      <p className="font-medium">{claim.accident_location}</p>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Accident Type</p>
-                    <Badge variant="outline">{claim.accident_type}</Badge>
-                  </div>
+                  )}
                 </div>
-                <div className="space-y-4">
-                  <div className="flex items-start gap-3">
-                    <Car className="h-5 w-5 text-muted-foreground mt-0.5" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Vehicle</p>
-                      <p className="font-medium">
-                        {claim.vehicle_year} {claim.vehicle_make} {claim.vehicle_model}
-                      </p>
-                      <p className="text-sm text-muted-foreground">{claim.vehicle_registration}</p>
+              ) : (
+                <>
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <div className="space-y-4">
+                      <div className="flex items-start gap-3">
+                        <PoundSterling className="h-5 w-5 text-muted-foreground mt-0.5" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Claim Amount</p>
+                          <p className="text-xl font-bold">
+                            £{Number(claim.claim_amount_gbp).toLocaleString("en-GB", { minimumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Accident Date</p>
+                          <p className="font-medium">{format(new Date(claim.accident_date), "dd MMMM yyyy")}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Location</p>
+                          <p className="font-medium">{claim.accident_location}</p>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-1">Accident Type</p>
+                        <Badge variant="outline">{claim.accident_type}</Badge>
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="flex items-start gap-3">
+                        <Car className="h-5 w-5 text-muted-foreground mt-0.5" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Vehicle</p>
+                          <p className="font-medium">
+                            {claim.vehicle_year} {claim.vehicle_make} {claim.vehicle_model}
+                          </p>
+                          <p className="text-sm text-muted-foreground">{claim.vehicle_registration}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <PoundSterling className="h-5 w-5 text-muted-foreground mt-0.5" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Vehicle Value</p>
+                          <p className="font-medium">£{Number(claim.vehicle_estimated_value_gbp).toLocaleString("en-GB")}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <User className="h-5 w-5 text-muted-foreground mt-0.5" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Previous Claims</p>
+                          <p className="font-medium">
+                            {claim.num_previous_claims} claims (£{Number(claim.total_previous_claims_gbp).toLocaleString("en-GB")})
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-start gap-3">
-                    <PoundSterling className="h-5 w-5 text-muted-foreground mt-0.5" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Vehicle Value</p>
-                      <p className="font-medium">£{Number(claim.vehicle_estimated_value_gbp).toLocaleString("en-GB")}</p>
-                    </div>
+                  <div className="mt-6 pt-6 border-t">
+                    <p className="text-sm text-muted-foreground mb-2">Accident Description</p>
+                    <p className="text-sm">{claim.accident_description}</p>
                   </div>
-                  <div className="flex items-start gap-3">
-                    <User className="h-5 w-5 text-muted-foreground mt-0.5" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Previous Claims</p>
-                      <p className="font-medium">
-                        {claim.num_previous_claims} claims (£{Number(claim.total_previous_claims_gbp).toLocaleString("en-GB")})
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-6 pt-6 border-t">
-                <p className="text-sm text-muted-foreground mb-2">Accident Description</p>
-                <p className="text-sm">{claim.accident_description}</p>
-              </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -495,12 +812,135 @@ export default function ClaimDetail() {
             </CardContent>
           </Card>
 
-          <OverrideForm 
-            claimId={id!} 
-            currentScore={claim.fraud_score || 0} 
-          />
+          {claim.decided_by && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-muted-foreground">Decision</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center gap-2">
+                  {claim.status === "approved" ? (
+                    <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  ) : (
+                    <XCircle className="h-5 w-5 text-red-600" />
+                  )}
+                  <span className={`font-semibold ${claim.status === "approved" ? "text-green-600" : "text-red-600"}`}>
+                    {claim.status === "approved" ? "Approved" : "Rejected"}
+                  </span>
+                </div>
+                <div className="text-sm space-y-1">
+                  <p><span className="text-muted-foreground">By:</span> {claim.decided_by}</p>
+                  {claim.decided_at && (
+                    <p><span className="text-muted-foreground">On:</span> {format(new Date(claim.decided_at), "dd MMM yyyy 'at' HH:mm")}</p>
+                  )}
+                  {claim.decision_reason && (
+                    <p>
+                      <span className="text-muted-foreground">Reason:</span>{" "}
+                      <Badge variant="outline" className="ml-1">
+                        {claim.decision_reason.replace(/_/g, " ")}
+                      </Badge>
+                    </p>
+                  )}
+                </div>
+                {claim.decision_notes && (
+                  <p className="text-sm italic text-muted-foreground border-t pt-2 mt-2">
+                    "{claim.decision_notes}"
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          <Card className="p-4">
+            <div className="space-y-3">
+              <h4 className="font-medium text-sm">Quick Actions</h4>
+              <Link href="/help">
+                <Button variant="outline" className="w-full justify-start gap-2" size="sm">
+                  <AlertTriangle className="h-4 w-4" />
+                  View Rules Guide
+                </Button>
+              </Link>
+            </div>
+          </Card>
         </div>
       </div>
+
+      <Dialog open={decisionModal !== null} onOpenChange={() => setDecisionModal(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {decisionModal === "approve" ? (
+                <>
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  Approve Claim
+                </>
+              ) : (
+                <>
+                  <XCircle className="h-5 w-5 text-red-600" />
+                  Reject Claim
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {decisionModal === "approve"
+                ? "Confirm you want to approve this claim. This action will be logged."
+                : "Confirm you want to reject this claim. This action will be logged."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="decision-reason">Reason (required)</Label>
+              <Select value={decisionReason} onValueChange={setDecisionReason}>
+                <SelectTrigger id="decision-reason" data-testid="select-decision-reason">
+                  <SelectValue placeholder="Select a reason..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {REASON_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="decision-notes">Notes (required)</Label>
+              <Textarea
+                id="decision-notes"
+                value={decisionNotes}
+                onChange={(e) => setDecisionNotes(e.target.value)}
+                placeholder="Enter your notes explaining this decision..."
+                rows={3}
+                data-testid="input-decision-notes"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDecisionModal(null)}>
+              Cancel
+            </Button>
+            {decisionModal === "approve" ? (
+              <Button 
+                onClick={() => approveClaim.mutate()}
+                disabled={!decisionReason || !decisionNotes.trim() || approveClaim.isPending}
+                className="bg-green-600 hover:bg-green-700"
+                data-testid="button-confirm-approve"
+              >
+                {approveClaim.isPending ? "Approving..." : "Approve Claim"}
+              </Button>
+            ) : (
+              <Button 
+                onClick={() => rejectClaim.mutate()}
+                disabled={!decisionReason || !decisionNotes.trim() || rejectClaim.isPending}
+                variant="destructive"
+                data-testid="button-confirm-reject"
+              >
+                {rejectClaim.isPending ? "Rejecting..." : "Reject Claim"}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

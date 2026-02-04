@@ -1,0 +1,71 @@
+You are refactoring and completing an existing MVP Fraud Prediction AI Agent project (React frontend + Azure Functions Python/FastAPI backend) to make the claim workflow more logical and production-ready.
+
+Current problem:
+- "Override Risk Score" is illogical — user can enter any random number without justification.
+- No proper Approve/Reject flow after review.
+- No clear claim status/badges (e.g. "Needs Review" after creation).
+- Claim status should evolve: New → Needs Review → Rescored/Edited → Approved / Rejected.
+
+New logic to implement exactly:
+- After claim creation/submit → status = "Needs Review" (badge: yellow "Needs Review")
+- In Claim Detail page:
+  - Show current score, rules triggered, extracted fields, documents, audit history
+  - Allow user to **edit any field** (e.g. correct Policy ID, update description, add notes on new evidence)
+  - Replace old "Override Score" with **Save & Rescore** button:
+    - When clicked → re-run rules engine on updated fields → calculate new score + risk band
+    - Show new score + triggered rules + "Rescored" badge (orange)
+    - Log RESCORE action in audit (old score → new score, user, timestamp, changed fields)
+  - After review/rescore → show **Approve** and **Reject** buttons:
+    - Approve: sets status to "Approved" (green badge), requires reason/notes (e.g. "Low risk confirmed", "Evidence supports")
+    - Reject: sets status to "Rejected" (red badge), requires reason/notes (e.g. "High risk – SIU referral", "Insufficient evidence")
+    - User can Approve high-risk or Reject low-risk — no enforcement
+    - Log APPROVE or REJECT in audit with reason/notes
+- Badges / Statuses (color-coded in UI):
+  - Needs Review (yellow) → default after creation
+  - Rescored (orange) → after Save & Rescore
+  - Approved (green)
+  - Rejected (red)
+- Status stored in claim record (add "status" field: string enum)
+- All actions (edit fields, rescore, approve/reject) → fully logged in audit-logs with user name, timestamp, details (old/new values, reason)
+
+Keep existing:
+- Motor insurance fields only
+- GPT-4.1 vision extraction on upload
+- Single file upload + remove
+- 3 users (Jake, Rahul, Navsheen) with simple login/JWT
+- Cosmos DB persistence (claims + audit-logs)
+- Blob Storage for docs
+- Current rules engine (update if needed, but keep weights/thresholds)
+
+Tasks:
+1. Update backend:
+   - Add status field to Claim schema (enum: Needs Review, Rescored, Approved, Rejected)
+   - New endpoints or update PUT /claims/{id}:
+     - PATCH fields → save changes → optional rescore on demand
+     - POST /claims/{id}/rescore → re-run rules → update score/band/status="Rescored"
+     - POST /claims/{id}/approve → status="Approved" + reason/notes
+     - POST /claims/{id}/reject → status="Rejected" + reason/notes
+   - Log every action in audit-logs (user, timestamp, action_type, details)
+
+2. Update frontend ClaimDetail.tsx:
+   - Show badge based on status (color-coded pill)
+   - Editable fields (inputs/selects) for all claim data
+   - Save & Rescore button → call rescore endpoint → refresh UI with new score
+   - Approve / Reject buttons with modal for reason/notes (dropdown + textarea)
+   - Disable Approve/Reject until reviewed (or always allow — human decides)
+
+3. Add Help/Manual page (if not already) explaining:
+   - How to review/edit/rescore
+   - Approve/Reject meaning (human final decision)
+   - Status badges meaning
+
+Output:
+- Step-by-step changes
+- Updated code blocks for:
+  - backend/routers/claims.py (new endpoints: rescore, approve, reject)
+  - backend/services/rules_engine.py (if any tweak)
+  - frontend/src/pages/ClaimDetail.tsx (editable fields, buttons, badge)
+  - Any schema updates (claim status)
+- Test steps: create claim → see "Needs Review" → edit field → Save & Rescore → see new score → Approve/Reject → check audit log
+
+Generate the updates now — make it intuitive, auditable, and fully human-controlled.

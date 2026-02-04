@@ -5,8 +5,8 @@ import uuid
 import json
 
 from ..models import (
-    Claim, ClaimCreate, ClaimUpdate, OverrideRequest, 
-    AuditLog, ExtractedFields, StatsResponse
+    Claim, ClaimCreate, ClaimUpdate, ClaimFieldsUpdate, OverrideRequest, 
+    DecisionRequest, RescoreRequest, AuditLog, ExtractedFields, StatsResponse
 )
 from ..services.auth import get_current_user, TokenData
 from ..services.rules_engine import run_rules_engine, calculate_risk_band
@@ -83,11 +83,15 @@ async def create_claim(
         "field_edits": [],
         "fraud_score": None,
         "risk_band": None,
-        "status": "pending",
+        "status": "needs_review",
         "created_at": datetime.utcnow().isoformat(),
         "updated_at": datetime.utcnow().isoformat(),
         "scored_at": None,
-        "created_by": current_user.username
+        "created_by": current_user.username,
+        "decision_reason": None,
+        "decision_notes": None,
+        "decided_by": None,
+        "decided_at": None
     }
     
     if claim_data.ai_extracted_fields:
@@ -137,7 +141,6 @@ async def create_claim(
         saved_claim["fraud_score"] = rules_result["fraud_score"]
         saved_claim["risk_band"] = rules_result["risk_band"]
         saved_claim["rule_triggers"] = rules_result["triggered_rules"]
-        saved_claim["status"] = "scored"
         saved_claim["scored_at"] = datetime.utcnow().isoformat()
         
         db.save_claim(saved_claim)
@@ -156,12 +159,223 @@ async def create_claim(
     
     return saved_claim
 
+@router.patch("/claims/{claim_id}/fields")
+async def update_claim_fields(
+    claim_id: str,
+    update: ClaimFieldsUpdate,
+    current_user: TokenData = Depends(get_current_user)
+):
+    """Update claim fields and log changes to audit trail."""
+    db = get_cosmos_db()
+    claim = db.get_claim(claim_id)
+    if not claim:
+        raise HTTPException(status_code=404, detail="Claim not found")
+    
+    if claim.get("status") in ["approved", "rejected"]:
+        raise HTTPException(
+            status_code=400, 
+            detail="Cannot edit fields on approved/rejected claims"
+        )
+    
+    update_data = update.model_dump(exclude_none=True)
+    changed_fields = []
+    
+    for field_name, new_value in update_data.items():
+        old_value = claim.get(field_name)
+        if str(old_value) != str(new_value):
+            claim[field_name] = new_value
+            changed_fields.append({
+                "field": field_name,
+                "old": old_value,
+                "new": new_value
+            })
+            
+            if "field_edits" not in claim:
+                claim["field_edits"] = []
+            claim["field_edits"].append({
+                "field_name": field_name,
+                "original_value": str(old_value) if old_value else None,
+                "edited_value": str(new_value),
+                "edited_by": current_user.full_name,
+                "edited_at": datetime.utcnow().isoformat(),
+                "reason": "Manual edit during review"
+            })
+            
+            db.save_audit_log({
+                "id": str(uuid.uuid4()),
+                "claim_id": claim_id,
+                "user_name": current_user.full_name,
+                "action_type": "FIELD_EDIT",
+                "field_changed": field_name,
+                "old_value": str(old_value) if old_value else None,
+                "new_value": str(new_value),
+                "notes": f"Field edited during review",
+                "timestamp": datetime.utcnow().isoformat()
+            })
+    
+    if changed_fields:
+        claim["updated_at"] = datetime.utcnow().isoformat()
+        db.save_claim(claim)
+    
+    audit_logs = db.get_audit_logs(claim_id)
+    claim["audit_logs"] = audit_logs
+    
+    return claim
+
+@router.post("/claims/{claim_id}/rescore")
+async def rescore_claim(
+    claim_id: str,
+    request: Optional[RescoreRequest] = None,
+    current_user: TokenData = Depends(get_current_user)
+):
+    """Re-run rules engine on current claim data and update score."""
+    db = get_cosmos_db()
+    claim = db.get_claim(claim_id)
+    if not claim:
+        raise HTTPException(status_code=404, detail="Claim not found")
+    
+    if claim.get("status") in ["approved", "rejected"]:
+        raise HTTPException(
+            status_code=400, 
+            detail="Cannot rescore approved/rejected claims"
+        )
+    
+    old_score = claim.get("fraud_score", 0)
+    old_risk_band = claim.get("risk_band", "low")
+    
+    signals = await analyze_claim_signals(claim)
+    rules_result = run_rules_engine(claim, signals)
+    
+    claim["signals"] = signals
+    claim["fraud_score"] = rules_result["fraud_score"]
+    claim["risk_band"] = rules_result["risk_band"]
+    claim["rule_triggers"] = rules_result["triggered_rules"]
+    claim["status"] = "rescored"
+    claim["scored_at"] = datetime.utcnow().isoformat()
+    claim["updated_at"] = datetime.utcnow().isoformat()
+    
+    db.save_claim(claim)
+    
+    notes = request.notes if request and request.notes else f"Re-scored by {current_user.full_name}"
+    
+    db.save_audit_log({
+        "id": str(uuid.uuid4()),
+        "claim_id": claim_id,
+        "user_name": current_user.full_name,
+        "action_type": "RESCORE",
+        "field_changed": "fraud_score",
+        "old_value": f"{old_score} ({old_risk_band})",
+        "new_value": f"{rules_result['fraud_score']} ({rules_result['risk_band']})",
+        "notes": notes,
+        "timestamp": datetime.utcnow().isoformat()
+    })
+    
+    audit_logs = db.get_audit_logs(claim_id)
+    claim["audit_logs"] = audit_logs
+    
+    return claim
+
+@router.post("/claims/{claim_id}/approve")
+async def approve_claim(
+    claim_id: str,
+    request: DecisionRequest,
+    current_user: TokenData = Depends(get_current_user)
+):
+    """Approve the claim with mandatory reason and notes."""
+    db = get_cosmos_db()
+    claim = db.get_claim(claim_id)
+    if not claim:
+        raise HTTPException(status_code=404, detail="Claim not found")
+    
+    if claim.get("status") in ["approved", "rejected"]:
+        raise HTTPException(
+            status_code=400, 
+            detail="Claim has already been decided"
+        )
+    
+    old_status = claim.get("status")
+    
+    claim["status"] = "approved"
+    claim["decision_reason"] = request.reason
+    claim["decision_notes"] = request.notes
+    claim["decided_by"] = current_user.full_name
+    claim["decided_at"] = datetime.utcnow().isoformat()
+    claim["updated_at"] = datetime.utcnow().isoformat()
+    
+    db.save_claim(claim)
+    
+    db.save_audit_log({
+        "id": str(uuid.uuid4()),
+        "claim_id": claim_id,
+        "user_name": current_user.full_name,
+        "action_type": "APPROVE",
+        "field_changed": "status",
+        "old_value": old_status,
+        "new_value": "approved",
+        "reason_category": request.reason,
+        "notes": request.notes,
+        "timestamp": datetime.utcnow().isoformat()
+    })
+    
+    audit_logs = db.get_audit_logs(claim_id)
+    claim["audit_logs"] = audit_logs
+    
+    return claim
+
+@router.post("/claims/{claim_id}/reject")
+async def reject_claim(
+    claim_id: str,
+    request: DecisionRequest,
+    current_user: TokenData = Depends(get_current_user)
+):
+    """Reject the claim with mandatory reason and notes."""
+    db = get_cosmos_db()
+    claim = db.get_claim(claim_id)
+    if not claim:
+        raise HTTPException(status_code=404, detail="Claim not found")
+    
+    if claim.get("status") in ["approved", "rejected"]:
+        raise HTTPException(
+            status_code=400, 
+            detail="Claim has already been decided"
+        )
+    
+    old_status = claim.get("status")
+    
+    claim["status"] = "rejected"
+    claim["decision_reason"] = request.reason
+    claim["decision_notes"] = request.notes
+    claim["decided_by"] = current_user.full_name
+    claim["decided_at"] = datetime.utcnow().isoformat()
+    claim["updated_at"] = datetime.utcnow().isoformat()
+    
+    db.save_claim(claim)
+    
+    db.save_audit_log({
+        "id": str(uuid.uuid4()),
+        "claim_id": claim_id,
+        "user_name": current_user.full_name,
+        "action_type": "REJECT",
+        "field_changed": "status",
+        "old_value": old_status,
+        "new_value": "rejected",
+        "reason_category": request.reason,
+        "notes": request.notes,
+        "timestamp": datetime.utcnow().isoformat()
+    })
+    
+    audit_logs = db.get_audit_logs(claim_id)
+    claim["audit_logs"] = audit_logs
+    
+    return claim
+
 @router.post("/claims/{claim_id}/override")
 async def override_score(
     claim_id: str,
     override: OverrideRequest,
     current_user: TokenData = Depends(get_current_user)
 ):
+    """Legacy override endpoint - kept for backward compatibility."""
     db = get_cosmos_db()
     claim = db.get_claim(claim_id)
     if not claim:
@@ -192,44 +406,6 @@ async def override_score(
     
     audit_logs = db.get_audit_logs(claim_id)
     claim["audit_logs"] = audit_logs
-    
-    return claim
-
-@router.post("/claims/{claim_id}/rescore")
-async def rescore_claim(
-    claim_id: str,
-    current_user: TokenData = Depends(get_current_user)
-):
-    db = get_cosmos_db()
-    claim = db.get_claim(claim_id)
-    if not claim:
-        raise HTTPException(status_code=404, detail="Claim not found")
-    
-    signals = await analyze_claim_signals(claim)
-    rules_result = run_rules_engine(claim, signals)
-    
-    old_score = claim.get("fraud_score", 0)
-    
-    claim["signals"] = signals
-    claim["fraud_score"] = rules_result["fraud_score"]
-    claim["risk_band"] = rules_result["risk_band"]
-    claim["rule_triggers"] = rules_result["triggered_rules"]
-    claim["scored_at"] = datetime.utcnow().isoformat()
-    claim["updated_at"] = datetime.utcnow().isoformat()
-    
-    db.save_claim(claim)
-    
-    db.save_audit_log({
-        "id": str(uuid.uuid4()),
-        "claim_id": claim_id,
-        "user_name": current_user.full_name,
-        "action_type": "SCORE_GENERATED",
-        "field_changed": "fraud_score",
-        "old_value": str(old_score),
-        "new_value": str(rules_result["fraud_score"]),
-        "notes": f"Re-scored by {current_user.full_name}",
-        "timestamp": datetime.utcnow().isoformat()
-    })
     
     return claim
 

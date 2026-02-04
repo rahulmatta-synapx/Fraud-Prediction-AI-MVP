@@ -12,7 +12,13 @@ import {
   MapPin,
   User,
   Users,
-  ChevronRight
+  ChevronRight,
+  FileSearch,
+  RefreshCw,
+  CheckCircle2,
+  XCircle,
+  Edit3,
+  ArrowRight
 } from "lucide-react";
 
 interface RuleInfo {
@@ -181,6 +187,102 @@ export default function HelpPage() {
               <span>Neutral, non-judgmental language in AI analysis</span>
             </li>
           </ul>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <RefreshCw className="h-5 w-5 text-primary" />
+            Claim Review Workflow
+          </CardTitle>
+          <CardDescription>
+            Follow this workflow to review claims and make decisions
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-4">
+            <div className="flex items-start gap-4">
+              <div className="flex flex-col items-center">
+                <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-full">
+                  <FileSearch className="h-5 w-5 text-yellow-600" />
+                </div>
+                <div className="w-0.5 h-8 bg-border" />
+              </div>
+              <div className="pb-4">
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">Needs Review</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  When a claim is created, it starts in "Needs Review" status. AI automatically scores the claim.
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-4">
+              <div className="flex flex-col items-center">
+                <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-full">
+                  <Edit3 className="h-5 w-5 text-blue-600" />
+                </div>
+                <div className="w-0.5 h-8 bg-border" />
+              </div>
+              <div className="pb-4">
+                <p className="font-medium">Edit Fields (Optional)</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Click "Edit Fields" to correct any information. Update policy ID, description, or any claim data.
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-4">
+              <div className="flex flex-col items-center">
+                <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-full">
+                  <RefreshCw className="h-5 w-5 text-orange-600" />
+                </div>
+                <div className="w-0.5 h-8 bg-border" />
+              </div>
+              <div className="pb-4">
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-orange-500/10 text-orange-600 border-orange-500/20">Rescored</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Click "Save & Rescore" to save changes and recalculate the fraud score based on updated data.
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-4">
+              <div className="flex flex-col items-center">
+                <div className="flex gap-2">
+                  <div className="p-2 bg-green-100 dark:bg-green-900 rounded-full">
+                    <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div className="p-2 bg-red-100 dark:bg-red-900 rounded-full">
+                    <XCircle className="h-5 w-5 text-red-600" />
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Approved</Badge>
+                  <span className="text-muted-foreground">or</span>
+                  <Badge className="bg-red-500/10 text-red-600 border-red-500/20">Rejected</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Make the final decision. You must provide a reason and notes. You can approve high-risk or reject low-risk claims — the decision is yours.
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="p-4 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg">
+            <p className="font-medium text-amber-800 dark:text-amber-200">
+              Important: All decisions require a reason and notes
+            </p>
+            <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+              When approving or rejecting a claim, you must select a reason category and provide notes explaining your decision. This is logged in the audit trail.
+            </p>
+          </div>
         </CardContent>
       </Card>
 

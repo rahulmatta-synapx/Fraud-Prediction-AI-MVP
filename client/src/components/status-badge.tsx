@@ -1,8 +1,8 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { FileText, BarChart3, Eye, CheckCircle2 } from "lucide-react";
+import { FileSearch, RefreshCw, CheckCircle2, XCircle } from "lucide-react";
 
-type ClaimStatus = "new" | "scored" | "reviewing" | "decided";
+type ClaimStatus = "needs_review" | "rescored" | "approved" | "rejected";
 
 interface StatusBadgeProps {
   status: ClaimStatus | string;
@@ -10,30 +10,30 @@ interface StatusBadgeProps {
 
 export function StatusBadge({ status }: StatusBadgeProps) {
   const config: Record<ClaimStatus, { label: string; icon: React.ComponentType<{ className?: string }>; className: string }> = {
-    new: {
-      label: "New",
-      icon: FileText,
-      className: "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:bg-blue-500/20 dark:text-blue-400 dark:border-blue-500/30",
+    needs_review: {
+      label: "Needs Review",
+      icon: FileSearch,
+      className: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20 dark:bg-yellow-500/20 dark:text-yellow-400 dark:border-yellow-500/30",
     },
-    scored: {
-      label: "Scored",
-      icon: BarChart3,
-      className: "bg-purple-500/10 text-purple-600 border-purple-500/20 dark:bg-purple-500/20 dark:text-purple-400 dark:border-purple-500/30",
+    rescored: {
+      label: "Rescored",
+      icon: RefreshCw,
+      className: "bg-orange-500/10 text-orange-600 border-orange-500/20 dark:bg-orange-500/20 dark:text-orange-400 dark:border-orange-500/30",
     },
-    reviewing: {
-      label: "Reviewing",
-      icon: Eye,
-      className: "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/30",
-    },
-    decided: {
-      label: "Decided",
+    approved: {
+      label: "Approved",
       icon: CheckCircle2,
-      className: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/30",
+      className: "bg-green-500/10 text-green-600 border-green-500/20 dark:bg-green-500/20 dark:text-green-400 dark:border-green-500/30",
+    },
+    rejected: {
+      label: "Rejected",
+      icon: XCircle,
+      className: "bg-red-500/10 text-red-600 border-red-500/20 dark:bg-red-500/20 dark:text-red-400 dark:border-red-500/30",
     },
   };
 
-  const statusKey = status as ClaimStatus;
-  const { label, icon: Icon, className } = config[statusKey] || config.new;
+  const normalizedStatus = status.toLowerCase().replace(/ /g, "_") as ClaimStatus;
+  const { label, icon: Icon, className } = config[normalizedStatus] || config.needs_review;
 
   return (
     <Badge 

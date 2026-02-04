@@ -8,13 +8,20 @@ AccidentType = Literal[
     "Parking Damage", "Theft", "Vandalism", "Fire", "Flood Damage"
 ]
 
-ActionType = Literal["SCORE_GENERATED", "OVERRIDE", "FIELD_EDIT", "STATUS_CHANGE", "CLAIM_CREATED", "DOCUMENT_UPLOADED"]
+ActionType = Literal[
+    "SCORE_GENERATED", "OVERRIDE", "FIELD_EDIT", "STATUS_CHANGE", 
+    "CLAIM_CREATED", "DOCUMENT_UPLOADED", "RESCORE", "APPROVE", "REJECT"
+]
 
-ReasonCategory = Literal["false_positive", "additional_evidence", "disagree_with_signal", "manual_review_complete", "other"]
+ReasonCategory = Literal[
+    "false_positive", "additional_evidence", "disagree_with_signal", 
+    "manual_review_complete", "low_risk_confirmed", "evidence_supports",
+    "high_risk_siu_referral", "insufficient_evidence", "other"
+]
 
 RiskBand = Literal["high", "medium", "low"]
 
-ClaimStatus = Literal["pending", "scored", "under_review", "approved", "denied", "closed"]
+ClaimStatus = Literal["needs_review", "rescored", "approved", "rejected"]
 
 class User(BaseModel):
     username: str
@@ -92,7 +99,7 @@ class Claim(BaseModel):
     documents: List[DocumentInfo] = []
     fraud_score: Optional[int] = None
     risk_band: Optional[RiskBand] = None
-    status: ClaimStatus = "pending"
+    status: ClaimStatus = "needs_review"
     signals: List[LLMSignal] = []
     rule_triggers: List[RuleTrigger] = []
     field_edits: List[FieldEdit] = []
@@ -100,6 +107,10 @@ class Claim(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     scored_at: Optional[datetime] = None
     created_by: str = "system"
+    decision_reason: Optional[str] = None
+    decision_notes: Optional[str] = None
+    decided_by: Optional[str] = None
+    decided_at: Optional[datetime] = None
 
 class ClaimCreate(BaseModel):
     claimant_name: str
@@ -118,6 +129,22 @@ class ClaimCreate(BaseModel):
     accident_description: str
     ai_extracted_fields: Optional[dict] = None
 
+class ClaimFieldsUpdate(BaseModel):
+    claimant_name: Optional[str] = None
+    policy_id: Optional[str] = None
+    num_previous_claims: Optional[int] = None
+    total_previous_claims_gbp: Optional[float] = None
+    vehicle_make: Optional[str] = None
+    vehicle_model: Optional[str] = None
+    vehicle_year: Optional[int] = None
+    vehicle_registration: Optional[str] = None
+    vehicle_estimated_value_gbp: Optional[float] = None
+    accident_date: Optional[str] = None
+    accident_type: Optional[AccidentType] = None
+    accident_location: Optional[str] = None
+    claim_amount_gbp: Optional[float] = None
+    accident_description: Optional[str] = None
+
 class ClaimUpdate(BaseModel):
     claimant_name: Optional[str] = None
     status: Optional[ClaimStatus] = None
@@ -125,6 +152,13 @@ class ClaimUpdate(BaseModel):
 class OverrideRequest(BaseModel):
     new_score: int = Field(ge=0, le=100)
     reason_category: ReasonCategory
+    notes: str = Field(min_length=1)
+
+class RescoreRequest(BaseModel):
+    notes: Optional[str] = None
+
+class DecisionRequest(BaseModel):
+    reason: ReasonCategory
     notes: str = Field(min_length=1)
 
 class AuditLog(BaseModel):
