@@ -5,21 +5,20 @@ from typing import Dict, Any
 from openai import OpenAI
 
 def get_openai_client() -> OpenAI:
-    """Get OpenAI client configured for Azure endpoint."""
-    endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT")
+    """Get OpenAI client configured for the direct Azure OpenAI resource."""
+    # This should be the .openai.azure.com endpoint
+    endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT") 
     api_key = os.environ.get("AZURE_OPENAI_KEY")
     
     if not endpoint or not api_key:
-        raise ValueError("Azure OpenAI credentials not configured. Set AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_KEY.")
+        raise ValueError("Azure OpenAI credentials not configured.")
     
-    endpoint = endpoint.strip().strip('"').strip("'")
-    api_key = api_key.strip().strip('"').strip("'")
+    # Strip quotes and trailing slashes
+    endpoint = endpoint.strip().strip('"').strip("'").rstrip("/")
     
-    if not endpoint.endswith("/"):
-        endpoint = endpoint + "/"
-    
+    # Construct the base_url exactly as in your working example
     return OpenAI(
-        base_url=endpoint + "openai/v1/",
+        base_url=f"{endpoint}/openai/v1/",
         api_key=api_key
     )
 
