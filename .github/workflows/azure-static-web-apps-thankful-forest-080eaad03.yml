@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      # Job triggers only when relevant frontend files or this workflow change
+      # Only trigger when relevant frontend files or this workflow change
       - 'client/**'
       - 'package.json'
       - 'vite.config.ts'
@@ -33,25 +33,26 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        # Runs at root to include all necessary build tools
+        # Runs at root because your package.json is at the root
         run: npm install
 
       - name: Build frontend
-        # This command creates the dist/public folder at your root
+        # This command creates the dist/public folder at the root
         run: npm run build
 
       - name: Deploy to Azure Static Web Apps
         uses: Azure/static-web-apps-deploy@v1
         with:
+          # This must match the secret name in your GitHub Settings
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_THANKFUL_FOREST_080EAAD03 }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
           
-          # The root directory containing your package.json
+          # Root directory containing your package.json
           app_location: "/" 
           
-          # The specific folder where Vite placed your production files
+          # CRITICAL: This points Azure to the folder containing index.html
           output_location: "dist/public"
           
-          # Instructs Azure to use the build we just generated manually
+          # Prevents Azure from trying to run its own build which failed earlier
           skip_app_build: true
