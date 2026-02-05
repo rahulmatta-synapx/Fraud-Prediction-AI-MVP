@@ -2,25 +2,20 @@ import os
 import json
 import base64
 from typing import Dict, Any
-from openai import OpenAI
+from openai import AzureOpenAI
 
-def get_openai_client() -> OpenAI:
-    """Get OpenAI client configured for Azure endpoint."""
+def get_openai_client() -> AzureOpenAI:
     endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT")
     api_key = os.environ.get("AZURE_OPENAI_KEY")
     
     if not endpoint or not api_key:
-        raise ValueError("Azure OpenAI credentials not configured. Set AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_KEY.")
+        raise ValueError("Azure OpenAI credentials not configured.")
     
-    endpoint = endpoint.strip().strip('"').strip("'")
-    api_key = api_key.strip().strip('"').strip("'")
-    
-    if not endpoint.endswith("/"):
-        endpoint = endpoint + "/"
-    
-    return OpenAI(
-        base_url=endpoint + "openai/v1/",
-        api_key=api_key
+    # AzureOpenAI handles the base_url construction for you
+    return AzureOpenAI(
+        azure_endpoint=endpoint,
+        api_key=api_key,
+        api_version="2024-02-15-preview" # Matches your llm_analyzer.py
     )
 
 EXTRACTION_PROMPT = '''Extract all the following fields from this UK motor insurance claim document accurately. Return only JSON with these exact keys:
@@ -61,16 +56,17 @@ async def extract_fields_from_document(
     content_type: str,
     filename: str
 ) -> Dict[str, Any]:
-    """Extract claim fields from uploaded document using Azure OpenAI Responses API."""
+    """Extract claim fields from uploaded document using Azure OpenAI Chat Completions."""
     import asyncio
     
     try:
+        # Use the AzureOpenAI client established in your other services
         client = get_openai_client()
         
         base64_string = base64.b64encode(file_content).decode("utf-8")
-        
         mime_type = get_mime_type(content_type, filename)
         
+        # Prepare the data URL for the multi-modal input
         file_data_url = f"data:{mime_type};base64,{base64_string}"
         
         max_retries = 3
@@ -80,24 +76,29 @@ async def extract_fields_from_document(
         
         for attempt in range(max_retries):
             try:
-                response = client.responses.create(
-                    model="gpt-4.1",
-                    input=[
+                # Switching from client.responses (which caused the attribute error) 
+                # to the standard chat.completions.create
+                response = client.chat.completions.create(
+                    model="gpt-4.1", # Ensure this matches your Azure Deployment Name
+                    messages=[
                         {
                             "role": "user",
                             "content": [
                                 {
-                                    "type": "input_file",
-                                    "filename": filename or "uploaded_claim.pdf",
-                                    "file_data": file_data_url,
+                                    "type": "text",
+                                    "text": EXTRACTION_PROMPT
                                 },
                                 {
-                                    "type": "input_text",
-                                    "text": EXTRACTION_PROMPT,
-                                },
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": file_data_url
+                                    }
+                                }
                             ],
-                        },
-                    ]
+                        }
+                    ],
+                    temperature=0.0, # Keep it deterministic for extraction
+                    max_tokens=1500
                 )
                 break
             except Exception as e:
@@ -107,13 +108,12 @@ async def extract_fields_from_document(
                 
                 if "DeploymentNotFound" in error_str or "404" in error_str:
                     if attempt < max_retries - 1:
-                        print(f"Retrying in {retry_delay}s...")
                         await asyncio.sleep(retry_delay)
                         retry_delay *= 2
                         continue
                     else:
                         return {
-                            "error": f"OpenAI deployment 'gpt-4.1' not found after {max_retries} retries. Check Azure portal.",
+                            "error": f"OpenAI deployment 'gpt-4.1' not found. Check Azure portal.",
                             "extraction_confidence": 0.0
                         }
                 elif "400" in error_str or "BadRequest" in error_str:
@@ -131,8 +131,10 @@ async def extract_fields_from_document(
         if response is None:
             return {"error": str(last_error) if last_error else "Unknown error", "extraction_confidence": 0.0}
         
-        content = response.output_text.strip()
+        # Access content via the standard Chat Completion response structure
+        content = response.choices[0].message.content.strip()
         
+        # Clean up any potential markdown code blocks in the response
         if content.startswith("```"):
             lines = content.split("\n")
             if lines[0].startswith("```"):
