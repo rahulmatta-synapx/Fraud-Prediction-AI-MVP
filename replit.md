@@ -47,9 +47,9 @@ Configure these in Replit Secrets for full functionality:
 - `JWT_SECRET` - Secret key for JWT signing (default provided for dev)
 
 ## Test Credentials (Hardcoded)
-- Username: `jake`, Password: `password123` → Jake Thompson
-- Username: `rahul`, Password: `password123` → Rahul Patel
-- Username: `navsheen`, Password: `password123` → Navsheen Singh
+- Username: `jake`, Password: `password123` → Jake Bowles
+- Username: `rahul`, Password: `password123` → Rahul Matta
+- Username: `navsheen`, Password: `password123` → Navsheen Koul
 
 ## Risk Scoring System
 - **Score Range:** 0-100 (sum of triggered rule weights, capped at 100)

@@ -11,9 +11,9 @@ JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 
 USERS = {
-    "jake": {"password": "password123", "full_name": "Jake Thompson"},
-    "rahul": {"password": "password123", "full_name": "Rahul Patel"},
-    "navsheen": {"password": "password123", "full_name": "Navsheen Singh"},
+    "jake": {"password": "password123", "full_name": "Jake Bowles"},
+    "rahul": {"password": "password123", "full_name": "Rahul Matta"},
+    "navsheen": {"password": "password123", "full_name": "Navsheen Koul"},
 }
 
 security = HTTPBearer()

@@ -106,17 +106,6 @@ export default function LoginPage() {
               <p className="text-xs text-slate-500 text-center mb-3">
                 Authorized analysts only
               </p>
-              <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                <div className="bg-slate-700/50 rounded p-2">
-                  <p className="text-slate-300 font-medium">Jake</p>
-                </div>
-                <div className="bg-slate-700/50 rounded p-2">
-                  <p className="text-slate-300 font-medium">Rahul</p>
-                </div>
-                <div className="bg-slate-700/50 rounded p-2">
-                  <p className="text-slate-300 font-medium">Navsheen</p>
-                </div>
-              </div>
             </div>
           </CardContent>
         </Card>
