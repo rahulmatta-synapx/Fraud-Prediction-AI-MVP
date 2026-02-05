@@ -8,6 +8,7 @@ on:
       - 'client/**'
       - 'package.json'
       - 'vite.config.ts'
+      - 'staticwebapp.config.json' # Add this line
       - '.github/workflows/azure-static-web-apps-*.yml'
   pull_request:
     types: [opened, synchronize, reopened, closed]
