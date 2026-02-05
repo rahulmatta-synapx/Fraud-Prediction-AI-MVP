@@ -1,5 +1,8 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
+// The absolute URL of your FastAPI backend on Azure App Service
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
 interface User {
   username: string;
   full_name: string;
@@ -27,13 +30,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     if (savedToken && savedUser) {
       setToken(savedToken);
-      setUser(JSON.parse(savedUser));
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch (e) {
+        console.error("Failed to parse saved user", e);
+      }
     }
     setIsLoading(false);
   }, []);
 
   const login = async (username: string, password: string) => {
-    const response = await fetch("/auth/login", {
+    // Calling the absolute URL to bypass the Static Web App routing
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -42,8 +50,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || "Login failed");
+      // Safely handle non-JSON error responses (like 404/405/500 HTML pages)
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Login failed");
+      } else {
+        throw new Error(`Server error: ${response.status} ${response.statusText}`);
+      }
     }
 
     const data = await response.json();

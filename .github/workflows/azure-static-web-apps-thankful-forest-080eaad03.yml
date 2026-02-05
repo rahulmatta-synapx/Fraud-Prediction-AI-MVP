@@ -32,12 +32,13 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        # Installs tools from the root package.json
         run: npm install
 
       - name: Build frontend
-        # Generates the dist/public folder structure
+        # This step now injects the backend URL so the React app knows where to call
         run: npm run build
+        env:
+          VITE_API_URL: https://fraudguard-api-a8ajdtckbrhub5dh.uksouth-01.azurewebsites.net
 
       - name: Deploy to Azure Static Web Apps
         uses: Azure/static-web-apps-deploy@v1
@@ -46,10 +47,8 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
           
-          # FIX: Directing the runner to the actual build output folder
+          # We point app_location to the build output folder directly
           app_location: "dist/public" 
-          
-          # Leave empty to ensure it treats dist/public as the site root
           output_location: "" 
           
           # Skip Oryx build to use our manual build from the previous step
