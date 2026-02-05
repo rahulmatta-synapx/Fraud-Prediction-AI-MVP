@@ -32,9 +32,11 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
+        # Installs tools from the root package.json
         run: npm install
 
       - name: Build frontend
+        # Generates the dist/public folder structure
         run: npm run build
 
       - name: Deploy to Azure Static Web Apps
@@ -43,9 +45,12 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_THANKFUL_FOREST_080EAAD03 }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
-          app_location: "/" 
           
-          # THIS IS THE FIX: Tell Azure to look in the folder Vite just built
-          output_location: "dist/public" 
+          # FIX: Directing the runner to the actual build output folder
+          app_location: "dist/public" 
           
+          # Leave empty to ensure it treats dist/public as the site root
+          output_location: "" 
+          
+          # Skip Oryx build to use our manual build from the previous step
           skip_app_build: true
