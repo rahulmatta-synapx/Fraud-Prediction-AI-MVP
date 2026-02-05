@@ -20,11 +20,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://thankful-forest-080eaad03.6.azurestaticapps.net",
-        "http://localhost:5000",
-        "*" 
+        "http://localhost:5000"
     ],
     allow_credentials=True,
-    allow_methods=["POST", "GET", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
