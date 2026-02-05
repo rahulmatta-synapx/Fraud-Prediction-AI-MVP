@@ -1,9 +1,14 @@
 {
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/assets/*.{png,jpg,gif,js,css}", "/api/*"]
+    "exclude": ["/assets/*", "/api/*", "/auth/*"]
   },
   "routes": [
+    {
+      "route": "/claims/*",
+      "serve": "/index.html",
+      "statusCode": 200
+    },
     {
       "route": "/*",
       "serve": "/index.html",
