@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import {
   PoundSterling,
   Calendar,
   Car,
+  ChevronRight,
 } from "lucide-react";
 
 interface ClaimSummary {
@@ -42,6 +43,8 @@ interface DashboardStats {
   pendingReview?: number;
   overrides_this_month?: number;
   overridesThisMonth?: number;
+  approved_count?: number;
+  rejected_count?: number;
 }
 
 function getScoreColor(score: number | null | undefined): string {
@@ -51,14 +54,9 @@ function getScoreColor(score: number | null | undefined): string {
   return "text-red-600";
 }
 
-function getScoreBgColor(score: number | null | undefined): string {
-  if (score === null || score === undefined) return "bg-muted";
-  if (score < 30) return "bg-green-50 dark:bg-green-950/20";
-  if (score <= 60) return "bg-amber-50 dark:bg-amber-950/20";
-  return "bg-red-50 dark:bg-red-950/20";
-}
-
 export default function Dashboard() {
+  const [, navigate] = useLocation();
+
   const { data: claims = [], isLoading: claimsLoading, refetch } = useQuery<ClaimSummary[]>({
     queryKey: ["/api/claims"],
   });
@@ -74,12 +72,16 @@ export default function Dashboard() {
   });
 
   const highRiskClaims = sortedClaims.filter(c => (c.risk_band || "") === "high");
-  const recentClaims = sortedClaims.slice(0, 8);
+  const needsReviewClaims = sortedClaims.filter(c => c.status === "needs_review");
 
   const getTotalClaims = () => stats?.total_claims ?? stats?.totalClaims ?? claims.length;
   const getHighRiskClaims = () => stats?.high_risk_claims ?? stats?.highRiskClaims ?? highRiskClaims.length;
-  const getPendingReview = () => stats?.pending_review ?? stats?.pendingReview ?? claims.filter(c => c.status === "needs_review").length;
-  const getOverrides = () => stats?.overrides_this_month ?? stats?.overridesThisMonth ?? 0;
+  const getPendingReview = () => stats?.pending_review ?? stats?.pendingReview ?? needsReviewClaims.length;
+  const getDecisionsMade = () => (stats?.approved_count ?? 0) + (stats?.rejected_count ?? 0);
+
+  const handleRowClick = (claimId: string) => {
+    navigate(`/claims/${claimId}`);
+  };
 
   return (
     <div className="p-6 space-y-6" data-testid="page-dashboard">
@@ -124,8 +126,8 @@ export default function Dashboard() {
         />
         <StatsCard
           title="Decisions Made"
-          value={getOverrides()}
-          description="This month"
+          value={getDecisionsMade()}
+          description="Approved + Rejected"
           icon={UserCheck}
         />
       </div>
@@ -145,64 +147,71 @@ export default function Dashboard() {
               <div className="text-center py-8 text-muted-foreground">
                 Loading claims...
               </div>
-            ) : recentClaims.length === 0 ? (
+            ) : sortedClaims.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <p className="text-sm">No claims to display</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {recentClaims.map((claim) => (
-                  <Link key={claim.claim_id || claim.id} href={`/claims/${claim.claim_id || claim.id}`}>
-                    <div 
-                      className={`p-4 rounded-lg border hover-elevate cursor-pointer ${getScoreBgColor(claim.fraud_score)}`}
-                      data-testid={`claim-card-${claim.claim_id || claim.id}`}
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <p className="font-semibold text-sm">{claim.claim_id || claim.id}</p>
-                            <StatusBadge status={claim.status} />
-                          </div>
-                          <p className="text-sm text-muted-foreground truncate">
-                            {claim.claimant_name}
-                          </p>
-                          <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <PoundSterling className="h-3 w-3" />
-                              £{Number(claim.claim_amount_gbp || 0).toLocaleString("en-GB")}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <AlertTriangle className="h-3 w-3" />
-                              {claim.accident_type || "N/A"}
-                            </span>
-                            {claim.vehicle_registration && (
-                              <span className="flex items-center gap-1">
-                                <Car className="h-3 w-3" />
-                                {claim.vehicle_registration}
-                              </span>
-                            )}
-                          </div>
-                          {claim.created_at && (
-                            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                              <Calendar className="h-3 w-3" />
-                              {format(new Date(claim.created_at), "dd MMM yyyy, HH:mm")}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <div className={`text-2xl font-bold ${getScoreColor(claim.fraud_score)}`}>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-muted-foreground">
+                      <th className="text-left py-3 px-2 font-medium">Claim ID</th>
+                      <th className="text-center py-3 px-2 font-medium">Score</th>
+                      <th className="text-left py-3 px-2 font-medium">Risk</th>
+                      <th className="text-left py-3 px-2 font-medium">Status</th>
+                      <th className="text-right py-3 px-2 font-medium">Amount</th>
+                      <th className="text-left py-3 px-2 font-medium hidden md:table-cell">Type</th>
+                      <th className="text-left py-3 px-2 font-medium hidden lg:table-cell">Registration</th>
+                      <th className="text-left py-3 px-2 font-medium hidden lg:table-cell">Submitted</th>
+                      <th className="py-3 px-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedClaims.slice(0, 10).map((claim) => (
+                      <tr 
+                        key={claim.claim_id || claim.id}
+                        className="border-b hover-elevate cursor-pointer"
+                        onClick={() => handleRowClick(claim.claim_id || claim.id)}
+                        data-testid={`claim-row-${claim.claim_id || claim.id}`}
+                      >
+                        <td className="py-3 px-2 font-medium">
+                          {claim.claim_id || claim.id}
+                        </td>
+                        <td className="py-3 px-2 text-center">
+                          <span className={`text-xl font-bold ${getScoreColor(claim.fraud_score)}`}>
                             {claim.fraud_score ?? "--"}
-                          </div>
+                          </span>
+                        </td>
+                        <td className="py-3 px-2">
                           <RiskBadge 
                             riskBand={(claim.risk_band as "low" | "medium" | "high") || "low"} 
                             score={claim.fraud_score}
                             size="sm"
                           />
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
+                        </td>
+                        <td className="py-3 px-2">
+                          <StatusBadge status={claim.status} />
+                        </td>
+                        <td className="py-3 px-2 text-right">
+                          £{Number(claim.claim_amount_gbp || 0).toLocaleString("en-GB")}
+                        </td>
+                        <td className="py-3 px-2 hidden md:table-cell text-muted-foreground">
+                          {claim.accident_type || "N/A"}
+                        </td>
+                        <td className="py-3 px-2 hidden lg:table-cell text-muted-foreground">
+                          {claim.vehicle_registration || "N/A"}
+                        </td>
+                        <td className="py-3 px-2 hidden lg:table-cell text-muted-foreground text-xs">
+                          {claim.created_at ? format(new Date(claim.created_at), "dd MMM yyyy") : "N/A"}
+                        </td>
+                        <td className="py-3 px-2">
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </CardContent>
@@ -218,31 +227,31 @@ export default function Dashboard() {
           <CardContent>
             {highRiskClaims.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                <p className="text-sm">No high-risk claims to review</p>
+                <p className="text-sm">No high-risk claims</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {highRiskClaims.slice(0, 5).map((claim) => (
-                  <Link key={claim.claim_id || claim.id} href={`/claims/${claim.claim_id || claim.id}`}>
-                    <div 
-                      className="flex items-center justify-between p-3 rounded-lg border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20 hover-elevate cursor-pointer"
-                      data-testid={`priority-claim-${claim.claim_id || claim.id}`}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium text-sm">{claim.claim_id || claim.id}</p>
-                          <StatusBadge status={claim.status} />
-                        </div>
-                        <p className="text-xs text-muted-foreground truncate">{claim.claimant_name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          £{Number(claim.claim_amount_gbp || 0).toLocaleString("en-GB")}
-                        </p>
+                  <div 
+                    key={claim.claim_id || claim.id}
+                    className="flex items-center justify-between p-3 rounded-lg border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20 hover-elevate cursor-pointer"
+                    onClick={() => handleRowClick(claim.claim_id || claim.id)}
+                    data-testid={`priority-claim-${claim.claim_id || claim.id}`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm">{claim.claim_id || claim.id}</p>
+                        <StatusBadge status={claim.status} />
                       </div>
-                      <div className="text-xl font-bold text-red-600">
-                        {claim.fraud_score ?? "--"}
-                      </div>
+                      <p className="text-xs text-muted-foreground truncate">{claim.claimant_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        £{Number(claim.claim_amount_gbp || 0).toLocaleString("en-GB")}
+                      </p>
                     </div>
-                  </Link>
+                    <div className="text-xl font-bold text-red-600">
+                      {claim.fraud_score ?? "--"}
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
@@ -260,8 +269,8 @@ export default function Dashboard() {
               <h3 className="font-semibold mb-1">Human-in-the-Loop</h3>
               <p className="text-sm text-muted-foreground">
                 FraudGuard provides AI-powered risk scores as recommendations only. 
-                All final decisions are made by qualified fraud analysts. 
-                Claims are locked after submission to ensure data integrity.
+                After reviewing the AI analysis, analysts can approve or reject claims.
+                Claims become read-only after decisions are made for audit compliance.
               </p>
             </div>
           </div>

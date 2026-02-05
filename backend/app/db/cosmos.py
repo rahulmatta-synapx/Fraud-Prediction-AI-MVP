@@ -125,33 +125,45 @@ class CosmosDBService:
         ))
         return items
     
-    def get_stats(self) -> Dict[str, int]:
+    def get_stats(self) -> Dict[str, Any]:
         claims = self.list_claims(1000)
-        today = datetime.utcnow().date().isoformat()
+        now = datetime.utcnow()
+        today = now.date().isoformat()
+        this_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+        last_24h = (now - timedelta(hours=24)).isoformat()
         
         high_risk = sum(1 for c in claims if c.get("risk_band") == "high")
         medium_risk = sum(1 for c in claims if c.get("risk_band") == "medium")
         low_risk = sum(1 for c in claims if c.get("risk_band") == "low")
-        pending = sum(1 for c in claims if c.get("status") in ["pending", "under_review"])
         
-        all_audits = []
-        for claim in claims:
-            audits = self.get_audit_logs(claim.get("claim_id", ""))
-            all_audits.extend(audits)
+        needs_review = sum(1 for c in claims if c.get("status") == "needs_review")
+        approved = sum(1 for c in claims if c.get("status") == "approved")
+        rejected = sum(1 for c in claims if c.get("status") == "rejected")
         
-        overrides_today = sum(
-            1 for a in all_audits 
-            if a.get("action_type") == "OVERRIDE" and 
-            a.get("timestamp", "").startswith(today)
-        )
+        claims_this_month = sum(1 for c in claims if c.get("created_at", "") >= this_month_start)
+        claims_last_24h = sum(1 for c in claims if c.get("created_at", "") >= last_24h)
+        
+        scored_claims = [c for c in claims if c.get("fraud_score") is not None]
+        avg_score = 0.0
+        if scored_claims:
+            avg_score = sum(c.get("fraud_score", 0) for c in scored_claims) / len(scored_claims)
+        
+        total_value = sum(c.get("claim_amount_gbp", 0) or 0 for c in claims)
         
         return {
             "total_claims": len(claims),
             "high_risk_claims": high_risk,
             "medium_risk_claims": medium_risk,
             "low_risk_claims": low_risk,
-            "pending_review": pending,
-            "overrides_today": overrides_today
+            "pending_review": needs_review,
+            "needs_review_count": needs_review,
+            "approved_count": approved,
+            "rejected_count": rejected,
+            "decisions_made": approved + rejected,
+            "claims_this_month": claims_this_month,
+            "claims_last_24h": claims_last_24h,
+            "average_score": round(avg_score, 1),
+            "total_value_gbp": total_value
         }
 
 cosmos_db: Optional[CosmosDBService] = None

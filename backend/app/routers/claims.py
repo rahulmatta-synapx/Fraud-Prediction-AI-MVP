@@ -13,6 +13,7 @@ from ..services.rules_engine import run_rules_engine, calculate_risk_band
 from ..services.llm_analyzer import analyze_claim_signals
 from ..services.document_extraction import extract_fields_from_document
 from ..services.blob_storage import upload_document, generate_sas_url
+from ..services.justification import generate_justification, _generate_fallback_justification
 from ..db.cosmos import get_cosmos_db
 
 router = APIRouter(prefix="/api", tags=["Claims"])
@@ -69,6 +70,13 @@ async def get_claim(
     for doc in claim.get("documents", []):
         if doc.get("blob_path"):
             doc["blob_url"] = generate_sas_url(doc["blob_path"])
+    
+    if claim.get("fraud_score") is not None and not claim.get("justification"):
+        try:
+            justification = await generate_justification(claim)
+            claim["justification"] = justification
+        except Exception:
+            claim["justification"] = _generate_fallback_justification(claim)
     
     return claim
 
@@ -210,11 +218,46 @@ async def approve_claim(
     request: DecisionRequest,
     current_user: TokenData = Depends(get_current_user)
 ):
-    """Approve claim - DISABLED: Claims are read-only after submission."""
-    raise HTTPException(
-        status_code=403, 
-        detail="Claims are read-only after submission. Decisions are not supported in this version."
-    )
+    """Approve the claim with mandatory reason and notes."""
+    db = get_cosmos_db()
+    claim = db.get_claim(claim_id)
+    if not claim:
+        raise HTTPException(status_code=404, detail="Claim not found")
+    
+    if claim.get("status") in ["approved", "rejected"]:
+        raise HTTPException(
+            status_code=400, 
+            detail="Claim has already been decided"
+        )
+    
+    old_status = claim.get("status")
+    
+    claim["status"] = "approved"
+    claim["decision_reason"] = request.reason
+    claim["decision_notes"] = request.notes
+    claim["decided_by"] = current_user.full_name
+    claim["decided_at"] = datetime.utcnow().isoformat()
+    claim["updated_at"] = datetime.utcnow().isoformat()
+    
+    db.save_claim(claim)
+    
+    db.save_audit_log({
+        "id": str(uuid.uuid4()),
+        "claim_id": claim_id,
+        "user_name": current_user.full_name,
+        "action_type": "APPROVE",
+        "field_changed": "status",
+        "old_value": old_status,
+        "new_value": "approved",
+        "reason_category": request.reason,
+        "notes": request.notes,
+        "timestamp": datetime.utcnow().isoformat()
+    })
+    
+    audit_logs = db.get_audit_logs(claim_id)
+    claim["audit_logs"] = audit_logs
+    
+    return claim
 
 @router.post("/claims/{claim_id}/reject")
 async def reject_claim(
@@ -222,11 +265,46 @@ async def reject_claim(
     request: DecisionRequest,
     current_user: TokenData = Depends(get_current_user)
 ):
-    """Reject claim - DISABLED: Claims are read-only after submission."""
-    raise HTTPException(
-        status_code=403, 
-        detail="Claims are read-only after submission. Decisions are not supported in this version."
-    )
+    """Reject the claim with mandatory reason and notes."""
+    db = get_cosmos_db()
+    claim = db.get_claim(claim_id)
+    if not claim:
+        raise HTTPException(status_code=404, detail="Claim not found")
+    
+    if claim.get("status") in ["approved", "rejected"]:
+        raise HTTPException(
+            status_code=400, 
+            detail="Claim has already been decided"
+        )
+    
+    old_status = claim.get("status")
+    
+    claim["status"] = "rejected"
+    claim["decision_reason"] = request.reason
+    claim["decision_notes"] = request.notes
+    claim["decided_by"] = current_user.full_name
+    claim["decided_at"] = datetime.utcnow().isoformat()
+    claim["updated_at"] = datetime.utcnow().isoformat()
+    
+    db.save_claim(claim)
+    
+    db.save_audit_log({
+        "id": str(uuid.uuid4()),
+        "claim_id": claim_id,
+        "user_name": current_user.full_name,
+        "action_type": "REJECT",
+        "field_changed": "status",
+        "old_value": old_status,
+        "new_value": "rejected",
+        "reason_category": request.reason,
+        "notes": request.notes,
+        "timestamp": datetime.utcnow().isoformat()
+    })
+    
+    audit_logs = db.get_audit_logs(claim_id)
+    claim["audit_logs"] = audit_logs
+    
+    return claim
 
 @router.post("/claims/{claim_id}/override")
 async def override_score(

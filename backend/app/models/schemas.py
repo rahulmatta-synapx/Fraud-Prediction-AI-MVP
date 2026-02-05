@@ -158,7 +158,7 @@ class RescoreRequest(BaseModel):
     notes: Optional[str] = None
 
 class DecisionRequest(BaseModel):
-    reason: ReasonCategory
+    reason: str
     notes: str = Field(min_length=1)
 
 class AuditLog(BaseModel):
@@ -197,4 +197,11 @@ class StatsResponse(BaseModel):
     medium_risk_claims: int
     low_risk_claims: int
     pending_review: int
-    overrides_today: int
+    needs_review_count: Optional[int] = None
+    approved_count: Optional[int] = None
+    rejected_count: Optional[int] = None
+    decisions_made: Optional[int] = None
+    claims_this_month: Optional[int] = None
+    claims_last_24h: Optional[int] = None
+    average_score: Optional[float] = None
+    total_value_gbp: Optional[float] = None

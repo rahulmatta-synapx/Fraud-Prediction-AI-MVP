@@ -124,11 +124,9 @@ export default function ClaimsList() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="new">New</SelectItem>
-                  <SelectItem value="scored">Scored</SelectItem>
-                  <SelectItem value="under_review">Under Review</SelectItem>
+                  <SelectItem value="needs_review">Needs Review</SelectItem>
                   <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="denied">Denied</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={riskFilter} onValueChange={setRiskFilter}>

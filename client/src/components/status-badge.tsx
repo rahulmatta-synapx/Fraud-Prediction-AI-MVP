@@ -1,8 +1,8 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { FileSearch, RefreshCw, CheckCircle2, XCircle } from "lucide-react";
+import { FileSearch, CheckCircle2, XCircle, Clock } from "lucide-react";
 
-type ClaimStatus = "needs_review" | "rescored" | "approved" | "rejected";
+type ClaimStatus = "needs_review" | "approved" | "rejected";
 
 interface StatusBadgeProps {
   status: ClaimStatus | string;
@@ -12,13 +12,8 @@ export function StatusBadge({ status }: StatusBadgeProps) {
   const config: Record<ClaimStatus, { label: string; icon: React.ComponentType<{ className?: string }>; className: string }> = {
     needs_review: {
       label: "Needs Review",
-      icon: FileSearch,
+      icon: Clock,
       className: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20 dark:bg-yellow-500/20 dark:text-yellow-400 dark:border-yellow-500/30",
-    },
-    rescored: {
-      label: "Rescored",
-      icon: RefreshCw,
-      className: "bg-orange-500/10 text-orange-600 border-orange-500/20 dark:bg-orange-500/20 dark:text-orange-400 dark:border-orange-500/30",
     },
     approved: {
       label: "Approved",

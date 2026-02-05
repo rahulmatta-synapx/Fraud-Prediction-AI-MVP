@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,9 +7,28 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ScoreDisplay } from "@/components/score-display";
 import { RiskBadge } from "@/components/risk-badge";
 import { StatusBadge } from "@/components/status-badge";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   ArrowLeft,
   Car,
@@ -28,6 +48,9 @@ import {
   Lock,
   Edit3,
   RefreshCw,
+  ThumbsUp,
+  ThumbsDown,
+  Info,
 } from "lucide-react";
 
 interface Claim {
@@ -93,6 +116,23 @@ interface Claim {
     notes: string | null;
     timestamp: string;
   }>;
+  justification?: {
+    risk_overview: {
+      risk_band: string;
+      fraud_score: number;
+      system_interpretation: string;
+    };
+    key_factors: Array<{
+      type: string;
+      name: string;
+      explanation: string;
+    }>;
+    analyst_guidance: {
+      review_focus: string[];
+      missing_or_uncertain_information: string[];
+    };
+    confidence_note: string;
+  };
   created_at: string;
   updated_at: string;
   scored_at: string | null;
@@ -103,11 +143,60 @@ interface Claim {
   decided_at?: string;
 }
 
+const DECISION_REASONS = [
+  "Low risk confirmed",
+  "Evidence supports claim",
+  "High risk - SIU referral",
+  "Insufficient evidence",
+  "Policy terms verified",
+  "Third party verified",
+  "Other",
+];
+
 export default function ClaimDetail() {
   const { id } = useParams<{ id: string }>();
+  const { toast } = useToast();
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [decisionReason, setDecisionReason] = useState("");
+  const [decisionNotes, setDecisionNotes] = useState("");
 
   const { data: claim, isLoading, error } = useQuery<Claim>({
     queryKey: ["/api/claims", id],
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", `/api/claims/${id}/approve`, { reason: decisionReason, notes: decisionNotes });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/claims", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/claims"] });
+      toast({ title: "Claim approved successfully" });
+      setShowApproveModal(false);
+      setDecisionReason("");
+      setDecisionNotes("");
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error approving claim", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", `/api/claims/${id}/reject`, { reason: decisionReason, notes: decisionNotes });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/claims", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/claims"] });
+      toast({ title: "Claim rejected successfully" });
+      setShowRejectModal(false);
+      setDecisionReason("");
+      setDecisionNotes("");
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error rejecting claim", description: error.message, variant: "destructive" });
+    },
   });
 
   if (isLoading) {
@@ -140,6 +229,9 @@ export default function ClaimDetail() {
       </div>
     );
   }
+
+  const isDecided = claim.status === "approved" || claim.status === "rejected";
+  const canDecide = !isDecided;
 
   const formatActionType = (action: string) => {
     const mapping: { [key: string]: string } = {
@@ -190,11 +282,67 @@ export default function ClaimDetail() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Lock className="h-4 w-4" />
-          <span className="text-sm">Read-only - Submitted claims cannot be edited</span>
+        <div className="flex items-center gap-4">
+          {canDecide && (
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="gap-2 border-green-600 text-green-600 hover:bg-green-50 dark:hover:bg-green-950"
+                onClick={() => setShowApproveModal(true)}
+                data-testid="button-approve"
+              >
+                <ThumbsUp className="h-4 w-4" />
+                Approve
+              </Button>
+              <Button
+                variant="outline"
+                className="gap-2 border-red-600 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                onClick={() => setShowRejectModal(true)}
+                data-testid="button-reject"
+              >
+                <ThumbsDown className="h-4 w-4" />
+                Reject
+              </Button>
+            </div>
+          )}
+          {isDecided && (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Lock className="h-4 w-4" />
+              <span className="text-sm">Decision made - Claim is now read-only</span>
+            </div>
+          )}
         </div>
       </div>
+
+      {isDecided && claim.decided_by && (
+        <Card className={claim.status === "approved" ? "border-green-500/50 bg-green-50/50 dark:bg-green-950/20" : "border-red-500/50 bg-red-50/50 dark:bg-red-950/20"}>
+          <CardContent className="p-4">
+            <div className="flex items-start gap-4">
+              {claim.status === "approved" ? (
+                <CheckCircle2 className="h-6 w-6 text-green-600" />
+              ) : (
+                <XCircle className="h-6 w-6 text-red-600" />
+              )}
+              <div className="flex-1">
+                <p className="font-semibold">
+                  Claim {claim.status === "approved" ? "Approved" : "Rejected"} by {claim.decided_by}
+                </p>
+                {claim.decided_at && (
+                  <p className="text-sm text-muted-foreground">
+                    {format(new Date(claim.decided_at), "dd MMM yyyy, HH:mm")}
+                  </p>
+                )}
+                {claim.decision_reason && (
+                  <Badge variant="outline" className="mt-2">{claim.decision_reason}</Badge>
+                )}
+                {claim.decision_notes && (
+                  <p className="text-sm mt-2">{claim.decision_notes}</p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
@@ -203,10 +351,6 @@ export default function ClaimDetail() {
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5 text-primary" />
                 Claim Details
-                <Badge variant="secondary" className="ml-2">
-                  <Lock className="h-3 w-3 mr-1" />
-                  Locked
-                </Badge>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -287,191 +431,255 @@ export default function ClaimDetail() {
                 </div>
               </div>
 
-              <div className="mt-6 pt-6 border-t">
-                <p className="text-sm text-muted-foreground mb-2">Accident Description</p>
-                <p className="text-sm">{claim.accident_description}</p>
-              </div>
+              {claim.accident_description && (
+                <div className="mt-6 pt-6 border-t">
+                  <p className="text-sm text-muted-foreground mb-2">Description</p>
+                  <p className="text-sm">{claim.accident_description}</p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          {claim.decision_reason && (
-            <Card className={claim.status === "approved" ? "border-green-200 bg-green-50/50 dark:bg-green-950/20" : "border-red-200 bg-red-50/50 dark:bg-red-950/20"}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  {claim.status === "approved" ? (
-                    <CheckCircle2 className="h-5 w-5 text-green-600" />
-                  ) : (
-                    <XCircle className="h-5 w-5 text-red-600" />
-                  )}
-                  Decision: {claim.status === "approved" ? "Approved" : "Rejected"}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div>
-                  <p className="text-sm text-muted-foreground">Reason</p>
-                  <p className="font-medium">{claim.decision_reason}</p>
-                </div>
-                {claim.decision_notes && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Notes</p>
-                    <p className="text-sm">{claim.decision_notes}</p>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                AI Risk Explanation
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {claim.justification ? (
+                <div className="space-y-6">
+                  <div className="p-4 rounded-lg bg-muted/50">
+                    <p className="text-sm font-medium mb-1">System Interpretation</p>
+                    <p className="text-sm text-muted-foreground">
+                      {claim.justification.risk_overview.system_interpretation}
+                    </p>
                   </div>
-                )}
-                <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                  <span>By: {claim.decided_by}</span>
-                  {claim.decided_at && (
-                    <span>On: {format(new Date(claim.decided_at), "dd MMM yyyy, HH:mm")}</span>
+
+                  {claim.justification.key_factors.length > 0 && (
+                    <div>
+                      <p className="text-sm font-medium mb-3">Key Factors</p>
+                      <div className="space-y-2">
+                        {claim.justification.key_factors.map((factor, idx) => (
+                          <div key={idx} className="flex items-start gap-3 p-3 rounded-lg border">
+                            <Badge variant="outline" className="text-xs shrink-0">
+                              {factor.type}
+                            </Badge>
+                            <div>
+                              <p className="font-medium text-sm">{factor.name}</p>
+                              <p className="text-sm text-muted-foreground">{factor.explanation}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {claim.justification.analyst_guidance && (
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="p-4 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
+                        <p className="text-sm font-medium mb-2 flex items-center gap-2">
+                          <Info className="h-4 w-4 text-blue-600" />
+                          Review Focus
+                        </p>
+                        <ul className="text-sm text-muted-foreground space-y-1">
+                          {claim.justification.analyst_guidance.review_focus.map((item, idx) => (
+                            <li key={idx}>• {item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      {claim.justification.analyst_guidance.missing_or_uncertain_information.length > 0 && (
+                        <div className="p-4 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20">
+                          <p className="text-sm font-medium mb-2 flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4 text-amber-600" />
+                            Information Gaps
+                          </p>
+                          <ul className="text-sm text-muted-foreground space-y-1">
+                            {claim.justification.analyst_guidance.missing_or_uncertain_information.map((item, idx) => (
+                              <li key={idx}>• {item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {claim.justification.confidence_note && (
+                    <p className="text-xs text-muted-foreground italic">
+                      {claim.justification.confidence_note}
+                    </p>
                   )}
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Risk explanation based on triggered rules and AI signals:
+                  </p>
+                  {claim.rule_triggers?.length > 0 ? (
+                    <div className="space-y-2">
+                      {claim.rule_triggers.map((rule, idx) => (
+                        <div key={idx} className="flex items-start gap-3 p-3 rounded-lg border">
+                          <Badge variant="outline" className="text-xs shrink-0">Rule</Badge>
+                          <div>
+                            <p className="font-medium text-sm">{rule.rule_name}</p>
+                            <p className="text-sm text-muted-foreground">{rule.description}</p>
+                          </div>
+                          <Badge variant="secondary" className="ml-auto">+{rule.weight}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No risk factors detected.</p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           <Card>
-            <CardContent className="pt-6">
+            <CardContent className="p-0">
               <Tabs defaultValue="signals">
-                <TabsList className="w-full justify-start">
-                  <TabsTrigger value="signals" data-testid="tab-signals">
+                <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
+                  <TabsTrigger value="signals" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
                     <Brain className="h-4 w-4 mr-2" />
                     AI Signals ({claim.signals?.length || 0})
                   </TabsTrigger>
-                  <TabsTrigger value="rules" data-testid="tab-rules">
+                  <TabsTrigger value="rules" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
                     <Scale className="h-4 w-4 mr-2" />
                     Rules ({claim.rule_triggers?.length || 0})
                   </TabsTrigger>
-                  <TabsTrigger value="documents" data-testid="tab-documents">
+                  <TabsTrigger value="documents" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
                     <FileText className="h-4 w-4 mr-2" />
                     Documents ({claim.documents?.length || 0})
                   </TabsTrigger>
-                  <TabsTrigger value="audit" data-testid="tab-audit">
+                  <TabsTrigger value="audit" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
                     <History className="h-4 w-4 mr-2" />
-                    Audit Log
+                    Audit Log ({claim.audit_logs?.length || 0})
                   </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="signals" className="mt-4">
-                  {claim.signals?.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      No signals detected
-                    </p>
-                  ) : (
-                    <div className="space-y-3">
-                      {claim.signals?.map((signal, idx) => (
-                        <div key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-                          <Sparkles className="h-4 w-4 text-cyan-600 mt-1" />
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-xs">
-                                {signal.signal_type}
-                              </Badge>
-                              <span className="text-xs text-muted-foreground">
-                                {(signal.confidence * 100).toFixed(0)}% confidence
-                              </span>
+                <div className="p-4">
+                  <TabsContent value="signals" className="mt-0">
+                    {claim.signals?.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No AI signals detected
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {claim.signals?.map((signal, idx) => (
+                          <div key={idx} className="flex items-start justify-between p-3 rounded-lg bg-muted/50">
+                            <div className="flex items-start gap-3">
+                              <Sparkles className="h-4 w-4 text-primary mt-0.5" />
+                              <div>
+                                <p className="font-medium text-sm">{signal.signal_type}</p>
+                                <p className="text-sm text-muted-foreground">{signal.description}</p>
+                              </div>
                             </div>
-                            <p className="text-sm mt-1">{signal.description}</p>
+                            <Badge variant="outline" className="text-xs">
+                              {Math.round(signal.confidence * 100)}%
+                            </Badge>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </TabsContent>
+                        ))}
+                      </div>
+                    )}
+                  </TabsContent>
 
-                <TabsContent value="rules" className="mt-4">
-                  {claim.rule_triggers?.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      No rules triggered
-                    </p>
-                  ) : (
-                    <div className="space-y-3">
-                      {claim.rule_triggers?.map((rule, idx) => (
-                        <div key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-                          <Scale className="h-4 w-4 text-amber-600 mt-1" />
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between">
-                              <p className="font-medium">{rule.rule_name}</p>
-                              <Badge variant="destructive" className="text-xs">
-                                +{rule.weight} points
-                              </Badge>
+                  <TabsContent value="rules" className="mt-0">
+                    {claim.rule_triggers?.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No rules triggered
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {claim.rule_triggers?.map((rule, idx) => (
+                          <div key={idx} className="flex items-start justify-between p-3 rounded-lg bg-muted/50">
+                            <div className="flex items-start gap-3">
+                              <Scale className="h-4 w-4 text-amber-600 mt-0.5" />
+                              <div>
+                                <p className="font-medium text-sm">{rule.rule_name}</p>
+                                <p className="text-sm text-muted-foreground">{rule.description}</p>
+                              </div>
                             </div>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {rule.description}
-                            </p>
+                            <Badge variant="outline" className="text-xs font-bold">
+                              +{rule.weight}
+                            </Badge>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </TabsContent>
+                        ))}
+                      </div>
+                    )}
+                  </TabsContent>
 
-                <TabsContent value="documents" className="mt-4">
-                  {claim.documents?.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      No documents attached
-                    </p>
-                  ) : (
-                    <div className="space-y-2">
-                      {claim.documents?.map((doc, idx) => (
-                        <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                          <div className="flex items-center gap-3">
-                            <FileText className="h-5 w-5 text-muted-foreground" />
-                            <div>
-                              <p className="font-medium">{doc.filename}</p>
-                              <p className="text-xs text-muted-foreground">
-                                Uploaded by {doc.uploaded_by} on {format(new Date(doc.uploaded_at), "dd MMM yyyy")}
-                              </p>
+                  <TabsContent value="documents" className="mt-0">
+                    {claim.documents?.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No documents attached
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {claim.documents?.map((doc, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                            <div className="flex items-center gap-3">
+                              <FileText className="h-5 w-5 text-muted-foreground" />
+                              <div>
+                                <p className="font-medium">{doc.filename}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  Uploaded by {doc.uploaded_by} on {format(new Date(doc.uploaded_at), "dd MMM yyyy")}
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                          {doc.blob_url && (
-                            <Button variant="ghost" size="sm" asChild>
-                              <a href={doc.blob_url} target="_blank" rel="noopener noreferrer">
-                                <ExternalLink className="h-4 w-4" />
-                              </a>
-                            </Button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </TabsContent>
-
-                <TabsContent value="audit" className="mt-4">
-                  {claim.audit_logs?.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      No audit entries
-                    </p>
-                  ) : (
-                    <div className="space-y-3">
-                      {claim.audit_logs?.slice().reverse().map((log, idx) => (
-                        <div key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-                          {getActionIcon(log.action_type)}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="font-medium text-sm">{formatActionType(log.action_type)}</p>
-                              <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                {format(new Date(log.timestamp), "dd MMM HH:mm")}
-                              </span>
-                            </div>
-                            <p className="text-xs text-muted-foreground">{log.user_name}</p>
-                            {log.field_changed && (
-                              <p className="text-sm mt-1">
-                                <span className="text-muted-foreground">{log.field_changed}:</span>{" "}
-                                {log.old_value && <span className="line-through text-muted-foreground">{log.old_value}</span>}
-                                {log.old_value && " → "}
-                                <span className="font-medium">{log.new_value}</span>
-                              </p>
-                            )}
-                            {log.notes && (
-                              <p className="text-sm text-muted-foreground mt-1">{log.notes}</p>
-                            )}
-                            {log.reason_category && (
-                              <Badge variant="outline" className="mt-1 text-xs">{log.reason_category}</Badge>
+                            {doc.blob_url && (
+                              <Button variant="ghost" size="sm" asChild>
+                                <a href={doc.blob_url} target="_blank" rel="noopener noreferrer">
+                                  <ExternalLink className="h-4 w-4" />
+                                </a>
+                              </Button>
                             )}
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </TabsContent>
+                        ))}
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="audit" className="mt-0">
+                    {claim.audit_logs?.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No audit entries
+                      </p>
+                    ) : (
+                      <div className="space-y-3">
+                        {claim.audit_logs?.slice().reverse().map((log, idx) => (
+                          <div key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+                            {getActionIcon(log.action_type)}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="font-medium text-sm">{formatActionType(log.action_type)}</p>
+                                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                  {format(new Date(log.timestamp), "dd MMM HH:mm")}
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">{log.user_name}</p>
+                              {log.field_changed && (
+                                <p className="text-sm mt-1">
+                                  <span className="text-muted-foreground">{log.field_changed}:</span>{" "}
+                                  {log.old_value && <span className="line-through text-muted-foreground">{log.old_value}</span>}
+                                  {log.old_value && " → "}
+                                  <span className="font-medium">{log.new_value}</span>
+                                </p>
+                              )}
+                              {log.notes && (
+                                <p className="text-sm text-muted-foreground mt-1">{log.notes}</p>
+                              )}
+                              {log.reason_category && (
+                                <Badge variant="outline" className="mt-1 text-xs">{log.reason_category}</Badge>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </TabsContent>
+                </div>
               </Tabs>
             </CardContent>
           </Card>
@@ -552,6 +760,116 @@ export default function ClaimDetail() {
           )}
         </div>
       </div>
+
+      <Dialog open={showApproveModal} onOpenChange={setShowApproveModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ThumbsUp className="h-5 w-5 text-green-600" />
+              Approve Claim
+            </DialogTitle>
+            <DialogDescription>
+              Approve this claim with a reason and notes. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="approve-reason">Reason *</Label>
+              <Select value={decisionReason} onValueChange={setDecisionReason}>
+                <SelectTrigger data-testid="select-approve-reason">
+                  <SelectValue placeholder="Select a reason" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DECISION_REASONS.map((reason) => (
+                    <SelectItem key={reason} value={reason}>
+                      {reason}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="approve-notes">Notes *</Label>
+              <Textarea
+                id="approve-notes"
+                placeholder="Enter notes about your decision..."
+                value={decisionNotes}
+                onChange={(e) => setDecisionNotes(e.target.value)}
+                rows={4}
+                data-testid="textarea-approve-notes"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowApproveModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-green-600 hover:bg-green-700"
+              onClick={() => approveMutation.mutate()}
+              disabled={!decisionReason || !decisionNotes || approveMutation.isPending}
+              data-testid="button-confirm-approve"
+            >
+              {approveMutation.isPending ? "Approving..." : "Approve Claim"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showRejectModal} onOpenChange={setShowRejectModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ThumbsDown className="h-5 w-5 text-red-600" />
+              Reject Claim
+            </DialogTitle>
+            <DialogDescription>
+              Reject this claim with a reason and notes. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="reject-reason">Reason *</Label>
+              <Select value={decisionReason} onValueChange={setDecisionReason}>
+                <SelectTrigger data-testid="select-reject-reason">
+                  <SelectValue placeholder="Select a reason" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DECISION_REASONS.map((reason) => (
+                    <SelectItem key={reason} value={reason}>
+                      {reason}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reject-notes">Notes *</Label>
+              <Textarea
+                id="reject-notes"
+                placeholder="Enter notes about your decision..."
+                value={decisionNotes}
+                onChange={(e) => setDecisionNotes(e.target.value)}
+                rows={4}
+                data-testid="textarea-reject-notes"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRejectModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => rejectMutation.mutate()}
+              disabled={!decisionReason || !decisionNotes || rejectMutation.isPending}
+              data-testid="button-confirm-reject"
+            >
+              {rejectMutation.isPending ? "Rejecting..." : "Reject Claim"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

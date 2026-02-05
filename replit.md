@@ -4,11 +4,11 @@
 A human-in-the-loop AI decision support system for UK motor insurance fraud analysts. The system provides risk score recommendations (0-100) for analysis purposes. Claims are read-only after submission to ensure data integrity.
 
 **Key Principles:**
-- AI provides risk analysis recommendations only
-- Claims are permanently locked after submission (no editing, rescoring, or decisions)
-- Confirmation modal warns users before final claim submission
+- AI provides risk analysis recommendations only (not final decisions)
+- Analysts can approve/reject claims with mandatory reason and notes
+- Claims become permanently locked after approve/reject decisions
 - All changes logged in immutable audit trail
-- Neutral, non-judgmental language in AI analysis
+- Neutral, non-judgmental language in AI justification
 
 ## Technology Stack
 - **Frontend:** React 18 + TypeScript, Wouter routing, TailwindCSS, Shadcn/UI (Port 5000)
@@ -86,14 +86,16 @@ Configure these in Replit Secrets for full functionality:
 - `POST /api/claims` - Create new claim (triggers async scoring)
 - `GET /api/stats` - Dashboard statistics
 
+### Analyst Decisions (require JWT authentication)
+- `POST /api/claims/:id/approve` - Approve claim (requires reason, notes)
+- `POST /api/claims/:id/reject` - Reject claim (requires reason, notes)
+
 ### Disabled Endpoints (return HTTP 403)
-All mutation endpoints are disabled - claims are read-only after submission:
-- `PATCH /api/claims/:id/fields` - DISABLED
-- `POST /api/claims/:id/rescore` - DISABLED
-- `POST /api/claims/:id/approve` - DISABLED
-- `POST /api/claims/:id/reject` - DISABLED
-- `POST /api/claims/:id/override` - DISABLED
-- `PATCH /api/claims/:id/status` - DISABLED
+These mutation endpoints remain disabled for data integrity:
+- `PATCH /api/claims/:id/fields` - DISABLED (no editing after submission)
+- `POST /api/claims/:id/rescore` - DISABLED (score calculated once)
+- `POST /api/claims/:id/override` - DISABLED (no score overrides)
+- `PATCH /api/claims/:id/status` - DISABLED (use approve/reject instead)
 
 ### Document Processing
 - `POST /api/documents/extract` - Upload document and extract claim data with GPT-4o
@@ -109,19 +111,29 @@ Uses GPT-4o with strict prompting for neutral language:
 - Confidence scores (0.0-1.0) for each signal
 - Signal types: Date Mismatch, Cost Anomaly, Description Gap, etc.
 
-## Claim Status (Read-Only)
-Claims are permanently locked after submission:
-- **needs_review** - Default status after creation
-- Claims cannot be edited, rescored, approved, or rejected after submission
-- Fraud score is calculated once at submission time and cannot be changed
+## Claim Status
+Available statuses:
+- **needs_review** - Default status after creation, awaiting analyst decision
+- **approved** - Analyst approved the claim
+- **rejected** - Analyst rejected the claim
 
 ### Workflow:
 1. User fills out claim form (optionally using AI document extraction)
 2. User reviews all fields before submission
 3. Confirmation modal warns about read-only nature
-4. User confirms → Claim submitted and permanently locked
-5. AI scores claim with rules engine
-6. Analyst reviews claim and AI recommendations (read-only view)
+4. User confirms → Claim submitted
+5. AI scores claim with rules engine and generates justification
+6. Analyst reviews claim, AI risk explanation, and recommendations
+7. Analyst makes decision (approve/reject with mandatory reason/notes)
+8. Decision is final - claim becomes permanently read-only
+
+## AI Justification
+Uses GPT-4.1 to generate structured, audit-compliant risk explanations:
+- **risk_overview**: Score interpretation and system assessment
+- **key_factors**: List of rules, AI signals, and claim data that contributed to score
+- **analyst_guidance**: Review focus points and information gaps
+- **confidence_note**: Limitations and confidence disclaimer
+- Language is neutral, professional, suitable for court disclosure
 
 ## Document Upload & Preview
 - Supports PDF and image uploads
@@ -131,19 +143,36 @@ Claims are permanently locked after submission:
 - After submission, all values are locked
 
 ## Dashboard Features
-- Clickable claim cards with rich information display
-- Cards show: fraud score (color-coded), status badge, claim amount, accident type, vehicle registration, submission date
-- Cards have color-coded backgrounds based on risk level
+- Table/list format with sortable rows showing all claims
+- Columns: Claim ID, Score, Risk Band, Status, Amount, Type, Registration, Date
+- Clickable rows navigate to claim detail page
 - High Risk Priority panel for quick access to high-risk claims
+- Real-time statistics cards (Total Claims, High Risk, Needs Review, Decisions Made)
+
+## Statistics Page
+Real-time aggregated data from Cosmos DB:
+- Total claims, high/medium/low risk distribution
+- Needs review, approved, rejected counts
+- Claims this month, last 24 hours
+- Average fraud score, total claim value
+- Visual progress bars for risk and status distributions
 
 ## Recent Changes
+- 2026-02-05: Re-enabled approve/reject with AI justification
+  - Analysts can now approve/reject claims with mandatory reason dropdown and notes
+  - Added AI Justification service using GPT-4.1 for structured risk explanations
+  - Justification includes: risk overview, key factors, analyst guidance, confidence note
+  - Decision modal with 7 reason options (Low risk confirmed, High risk - SIU referral, etc.)
+  - Claims become permanently read-only after approve/reject decisions
+  - Dashboard now uses table/list format with clickable rows
+  - Statistics page shows real-time aggregated data (approved/rejected counts, claims this month, etc.)
+  - Updated status badges to show: needs_review, approved, rejected
+  - Enhanced stats endpoint with detailed metrics
 - 2026-02-04: Read-only claims implementation
-  - Claims are now permanently locked after submission
-  - Removed all editing, rescoring, approval/rejection functionality
+  - Claims are permanently locked after submission (no editing, rescoring, override)
   - Added confirmation modal before claim submission warning users
   - Enhanced document upload with live PDF/image preview
-  - Improved dashboard with clickable claim cards showing rich info
-  - Backend enforces read-only with HTTP 403 on all mutation endpoints
+  - Backend enforces read-only with HTTP 403 on mutation endpoints
   - Added normalize_value() function to prevent false FIELD_EDIT logs
 - 2026-02-03: Updated fraud detection rules engine
   - New 10 UK motor fraud rules with specific weights (10-40 points each)
