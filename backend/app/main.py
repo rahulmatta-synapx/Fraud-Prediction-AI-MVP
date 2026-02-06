@@ -9,8 +9,8 @@ load_dotenv()
 from .routers import auth, claims
 
 app = FastAPI(
-    title="FraudGuard AI API",
-    description="UK Motor Insurance Fraud Prediction Agent - Azure Native",
+    title="Synapx AI API",
+    description="Fraud Prediction AI Agent",
     version="2.0.0"
 )
 
@@ -34,7 +34,7 @@ app.include_router(claims.router)
 @app.get("/")
 async def root():
     return {
-        "name": "FraudGuard AI API",
+        "name": "Synapx AI API",
         "version": "2.0.0",
         "status": "running"
     }

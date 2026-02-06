@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Shield, AlertCircle, User, Lock } from "lucide-react";
+import { AlertCircle, User, Lock } from "lucide-react";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
@@ -35,16 +35,17 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 bg-cyan-500 rounded-xl flex items-center justify-center mb-4">
-            <Shield className="w-10 h-10 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-white">FraudGuard</h1>
-          <p className="text-slate-400 mt-1">UK Motor Insurance</p>
+          <img 
+            src="/synapx login.png" 
+            alt="Synapx Logo" 
+            className="h-32 w-auto mb-2"
+          />
+          <p className="text-slate-400">Fraud Prediction AI Agent</p>
         </div>
 
         <Card className="bg-slate-800/50 border-slate-700">
           <CardHeader className="text-center">
-            <CardTitle className="text-white">Analyst Login</CardTitle>
+            <CardTitle className="text-white">Login</CardTitle>
             <CardDescription className="text-slate-400">
               Sign in to access the fraud analysis dashboard
             </CardDescription>

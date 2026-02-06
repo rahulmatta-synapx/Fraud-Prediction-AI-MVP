@@ -164,7 +164,7 @@ export default function HelpPage() {
             </p>
           </div>
           <p>
-            The FraudGuard AI system is designed to assist human fraud analysts in evaluating 
+            The Synapx AI system is designed to assist human fraud analysts in evaluating 
             motor insurance claims. The system provides risk score recommendations based on 
             configurable rules and AI-detected patterns, but <strong>all final decisions are 
             made by qualified human investigators</strong>.
@@ -218,39 +218,6 @@ export default function HelpPage() {
                 </p>
               </div>
             </div>
-            
-            <div className="flex items-start gap-4">
-              <div className="flex flex-col items-center">
-                <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-full">
-                  <Edit3 className="h-5 w-5 text-blue-600" />
-                </div>
-                <div className="w-0.5 h-8 bg-border" />
-              </div>
-              <div className="pb-4">
-                <p className="font-medium">Edit Fields (Optional)</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Click "Edit Fields" to correct any information. Update policy ID, description, or any claim data.
-                </p>
-              </div>
-            </div>
-            
-            <div className="flex items-start gap-4">
-              <div className="flex flex-col items-center">
-                <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-full">
-                  <RefreshCw className="h-5 w-5 text-orange-600" />
-                </div>
-                <div className="w-0.5 h-8 bg-border" />
-              </div>
-              <div className="pb-4">
-                <div className="flex items-center gap-2">
-                  <Badge className="bg-orange-500/10 text-orange-600 border-orange-500/20">Rescored</Badge>
-                </div>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Click "Save & Rescore" to save changes and recalculate the fraud score based on updated data.
-                </p>
-              </div>
-            </div>
-            
             <div className="flex items-start gap-4">
               <div className="flex flex-col items-center">
                 <div className="flex gap-2">

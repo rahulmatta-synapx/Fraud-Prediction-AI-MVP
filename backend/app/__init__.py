@@ -1,1 +1,1 @@
-# FraudGuard AI Backend
+# Synapx AI Backend

@@ -90,7 +90,7 @@ function AuthenticatedApp() {
 
 function App() {
   return (
-    <ThemeProvider defaultTheme="light" storageKey="fraudguard-theme">
+    <ThemeProvider defaultTheme="light" storageKey="synapx-theme">
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <AuthProvider>

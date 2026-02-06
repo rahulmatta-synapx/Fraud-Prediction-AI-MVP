@@ -15,7 +15,6 @@ import {
   LayoutDashboard, 
   FileSearch, 
   Plus,
-  Shield,
   AlertTriangle,
   BarChart3,
   HelpCircle,
@@ -60,12 +59,20 @@ export function AppSidebar() {
       <SidebarHeader className="p-4 border-b border-sidebar-border">
         <Link href="/">
           <div className="flex items-center gap-3 cursor-pointer">
-            <div className="p-2 rounded-lg bg-sidebar-primary">
-              <Shield className="h-5 w-5 text-sidebar-primary-foreground" />
+            <div className="flex-shrink-0">
+              <img 
+                src="/synapx logo sidebar.png" 
+                alt="Synapx Logo" 
+                className="h-8 w-8 object-contain"
+              />
             </div>
-            <div>
-              <h1 className="font-bold text-lg text-sidebar-foreground">FraudGuard</h1>
-              <p className="text-xs text-sidebar-foreground/70">UK Motor Insurance</p>
+            <div className="mt-1">
+              <img 
+                src="/synapx text sidebar.png" 
+                alt="Synapx" 
+                className="h-5 w-auto mt-0.5 mb-1"
+              />
+              <p className="text-xs text-sidebar-foreground/70">Fraud Prediction AI Agent</p>
             </div>
           </div>
         </Link>

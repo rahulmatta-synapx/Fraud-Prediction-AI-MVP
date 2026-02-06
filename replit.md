@@ -1,4 +1,4 @@
-# FraudGuard AI - UK Motor Insurance Fraud Prediction Agent
+# Synapx AI - Fraud Prediction AI Agent
 
 ## Overview
 A human-in-the-loop AI decision support system for UK motor insurance fraud analysts. The system provides risk score recommendations (0-100) for analysis purposes. Claims are read-only after submission to ensure data integrity.
