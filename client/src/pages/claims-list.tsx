@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,9 +27,19 @@ interface ClaimSummary {
 }
 
 export default function ClaimsList() {
+  const searchString = useSearch();
+  const params = new URLSearchParams(searchString);
+  const riskFromUrl = params.get("risk");
+  
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [riskFilter, setRiskFilter] = useState<string>("all");
+  const [riskFilter, setRiskFilter] = useState<string>(riskFromUrl || "all");
+
+  useEffect(() => {
+    if (riskFromUrl) {
+      setRiskFilter(riskFromUrl);
+    }
+  }, [riskFromUrl]);
 
   const { data: claims = [], isLoading } = useQuery<ClaimSummary[]>({
     queryKey: ["/api/claims"],
