@@ -88,6 +88,7 @@ export function ClaimsTable({ claims, isLoading }: ClaimsTableProps) {
               key={claim.id} 
               className="hover-elevate cursor-pointer"
               data-testid={`row-claim-${claim.id}`}
+              onClick={() => window.location.href = `/claims/${claim.claim_id}`}
             >
               <TableCell className="font-mono font-medium text-sm">
                 {getClaimRef(claim)}
@@ -127,11 +128,7 @@ export function ClaimsTable({ claims, isLoading }: ClaimsTableProps) {
                 />
               </TableCell>
               <TableCell>
-                <Link href={`/claims/${claim.claim_id}`}>
-                  <Button variant="ghost" size="icon" data-testid={`button-view-claim-${claim.claim_id}`}>
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </Link>
+                <ChevronRight className="h-4 w-4" />
               </TableCell>
             </TableRow>
           ))}
