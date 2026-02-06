@@ -215,7 +215,16 @@ export default function SubmitClaim() {
         ai_extracted_fields: extractedFields,
       };
       const response = await apiRequest("POST", "/api/claims", payload);
-      return response.json();
+      const claimResult = await response.json();
+      
+      // Upload the document if one was selected
+      if (uploadedFile && claimResult.claim_id) {
+        const formData = new FormData();
+        formData.append("file", uploadedFile);
+        await apiRequestFormData("POST", `/api/claims/${claimResult.claim_id}/upload`, formData);
+      }
+      
+      return claimResult;
     },
     onSuccess: (data: any) => {
       toast({

@@ -616,24 +616,52 @@ export default function ClaimDetail() {
                         No documents attached
                       </p>
                     ) : (
-                      <div className="space-y-2">
+                      <div className="space-y-4">
                         {claim.documents?.map((doc, idx) => (
-                          <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                            <div className="flex items-center gap-3">
-                              <FileText className="h-5 w-5 text-muted-foreground" />
-                              <div>
-                                <p className="font-medium">{doc.filename}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  Uploaded by {doc.uploaded_by} on {format(new Date(doc.uploaded_at), "dd MMM yyyy")}
-                                </p>
+                          <div key={idx} className="space-y-4">
+                            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                              <div className="flex items-center gap-3">
+                                <FileText className="h-5 w-5 text-muted-foreground" />
+                                <div>
+                                  <p className="font-medium">{doc.filename}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Uploaded by {doc.uploaded_by} on {format(new Date(doc.uploaded_at), "dd MMM yyyy")}
+                                  </p>
+                                </div>
                               </div>
+                              {doc.blob_url && (
+                                <Button variant="ghost" size="sm" asChild>
+                                  <a href={doc.blob_url} target="_blank" rel="noopener noreferrer">
+                                    <ExternalLink className="h-4 w-4" />
+                                  </a>
+                                </Button>
+                              )}
                             </div>
+
                             {doc.blob_url && (
-                              <Button variant="ghost" size="sm" asChild>
-                                <a href={doc.blob_url} target="_blank" rel="noopener noreferrer">
-                                  <ExternalLink className="h-4 w-4" />
-                                </a>
-                              </Button>
+                              <div className="border rounded-lg overflow-hidden bg-muted/30">
+                                <div className="p-2 border-b bg-muted/50">
+                                  <p className="text-sm font-medium">Document Preview</p>
+                                  <p className="text-xs text-muted-foreground">View the uploaded document</p>
+                                </div>
+                                {doc.content_type.startsWith("image/") ? (
+                                  <div className="p-4 flex justify-center">
+                                    <img 
+                                      src={doc.blob_url} 
+                                      alt="Document preview" 
+                                      className="max-w-full max-h-96 object-contain rounded border"
+                                    />
+                                  </div>
+                                ) : doc.content_type === "application/pdf" ? (
+                                  <div className="h-96 w-full">
+                                    <iframe
+                                      src={doc.blob_url}
+                                      className="w-full h-full"
+                                      title="PDF Preview"
+                                    />
+                                  </div>
+                                ) : null}
+                              </div>
                             )}
                           </div>
                         ))}
