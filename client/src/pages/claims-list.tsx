@@ -36,9 +36,7 @@ export default function ClaimsList() {
   const [riskFilter, setRiskFilter] = useState<string>(riskFromUrl || "all");
 
   useEffect(() => {
-    if (riskFromUrl) {
-      setRiskFilter(riskFromUrl);
-    }
+    setRiskFilter(riskFromUrl || "all");
   }, [riskFromUrl]);
 
   const { data: claims = [], isLoading } = useQuery<ClaimSummary[]>({
@@ -94,9 +92,13 @@ export default function ClaimsList() {
     <div className="p-6 space-y-6" data-testid="page-claims-list">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-bold">All Claims</h1>
+          <h1 className="text-2xl font-bold">
+            {riskFilter === "high" ? "High Risk Claims" : "All Claims"}
+          </h1>
           <p className="text-muted-foreground">
-            Browse and manage motor insurance claims
+            {riskFilter === "high" 
+              ? "Review high-risk motor insurance claims requiring attention" 
+              : "Browse and manage motor insurance claims"}
           </p>
         </div>
         <div className="flex gap-3">
