@@ -136,7 +136,7 @@ export default function ClaimsList() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="needs_review">Needs Review</SelectItem>
+                  <SelectItem value="needs_review">In Review</SelectItem>
                   <SelectItem value="approved">Approved</SelectItem>
                   <SelectItem value="rejected">Rejected</SelectItem>
                 </SelectContent>
