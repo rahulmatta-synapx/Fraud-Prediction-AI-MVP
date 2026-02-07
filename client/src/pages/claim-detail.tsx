@@ -146,12 +146,8 @@ interface Claim {
 const APPROVE_REASONS = [
   "Low risk score with no significant rule triggers",
   "All supporting documentation verified and consistent",
-  "AI analysis shows minimal fraud indicators",
   "Timeline and evidence align with claim narrative",
   "Third-party documentation supports claim (e.g., police/fire service report)",
-  "No pattern of frequent or suspicious claims",
-  "Late notification adequately explained",
-  "Claim amount justified by supporting evidence",
   "Other",
 ];
 
@@ -160,11 +156,6 @@ const REJECT_REASONS = [
   "Pattern of frequent similar claims detected",
   "Document timeline inconsistencies identified",
   "Missing critical supporting evidence (CCTV, police report, etc.)",
-  "Late notification without valid explanation",
-  "Claim amount disproportionate to stated damages or vehicle value",
-  "AI detected suspicious patterns requiring further investigation",
-  "Inconsistencies between claim description and documentation",
-  "Refer to specialist investigation team for detailed review",
   "Other",
 ];
 
@@ -289,7 +280,7 @@ export default function ClaimDetail() {
           </Link>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold">{claim.claim_id}</h1>
+              <h1 className="text-lg font-bold">{claim.claim_id}</h1>
               <StatusBadge status={claim.status} />
             </div>
             <p className="text-muted-foreground">
@@ -805,7 +796,7 @@ export default function ClaimDetail() {
       </div>
 
       <Dialog open={showApproveModal} onOpenChange={setShowApproveModal}>
-        <DialogContent>
+        <DialogContent className="max-w-mlgd">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ThumbsUp className="h-5 w-5 text-green-600" />
@@ -815,17 +806,17 @@ export default function ClaimDetail() {
               Approve this claim with a reason and notes. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label htmlFor="approve-reason">Reason *</Label>
               <Select value={decisionReason} onValueChange={setDecisionReason}>
-                <SelectTrigger data-testid="select-approve-reason">
+                <SelectTrigger data-testid="select-approve-reason" className="w-full">
                   <SelectValue placeholder="Select a reason" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-[300px]">
                   {APPROVE_REASONS.map((reason) => (
-                    <SelectItem key={reason} value={reason}>
-                      {reason}
+                    <SelectItem key={reason} value={reason} className="cursor-pointer">
+                      <span className="block max-w-[350px] text-sm">{reason}</span>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -839,11 +830,12 @@ export default function ClaimDetail() {
                 value={decisionNotes}
                 onChange={(e) => setDecisionNotes(e.target.value)}
                 rows={4}
+                className="resize-none"
                 data-testid="textarea-approve-notes"
               />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setShowApproveModal(false)}>
               Cancel
             </Button>
@@ -860,7 +852,7 @@ export default function ClaimDetail() {
       </Dialog>
 
       <Dialog open={showRejectModal} onOpenChange={setShowRejectModal}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ThumbsDown className="h-5 w-5 text-red-600" />
@@ -870,17 +862,17 @@ export default function ClaimDetail() {
               Reject this claim with a reason and notes. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label htmlFor="reject-reason">Reason *</Label>
               <Select value={decisionReason} onValueChange={setDecisionReason}>
-                <SelectTrigger data-testid="select-reject-reason">
+                <SelectTrigger data-testid="select-reject-reason" className="w-full">
                   <SelectValue placeholder="Select a reason" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-[300px]">
                   {REJECT_REASONS.map((reason) => (
-                    <SelectItem key={reason} value={reason}>
-                      {reason}
+                    <SelectItem key={reason} value={reason} className="cursor-pointer">
+                      <span className="block max-w-[350px] text-sm">{reason}</span>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -894,11 +886,12 @@ export default function ClaimDetail() {
                 value={decisionNotes}
                 onChange={(e) => setDecisionNotes(e.target.value)}
                 rows={4}
+                className="resize-none"
                 data-testid="textarea-reject-notes"
               />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setShowRejectModal(false)}>
               Cancel
             </Button>
