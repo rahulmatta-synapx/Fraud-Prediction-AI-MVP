@@ -143,13 +143,28 @@ interface Claim {
   decided_at?: string;
 }
 
-const DECISION_REASONS = [
-  "Low risk confirmed",
-  "Evidence supports claim",
-  "High risk - SIU referral",
-  "Insufficient evidence",
-  "Policy terms verified",
-  "Third party verified",
+const APPROVE_REASONS = [
+  "Low risk score with no significant rule triggers",
+  "All supporting documentation verified and consistent",
+  "AI analysis shows minimal fraud indicators",
+  "Timeline and evidence align with claim narrative",
+  "Third-party documentation supports claim (e.g., police/fire service report)",
+  "No pattern of frequent or suspicious claims",
+  "Late notification adequately explained",
+  "Claim amount justified by supporting evidence",
+  "Other",
+];
+
+const REJECT_REASONS = [
+  "Multiple high-weight rules triggered (high risk score)",
+  "Pattern of frequent similar claims detected",
+  "Document timeline inconsistencies identified",
+  "Missing critical supporting evidence (CCTV, police report, etc.)",
+  "Late notification without valid explanation",
+  "Claim amount disproportionate to stated damages or vehicle value",
+  "AI detected suspicious patterns requiring further investigation",
+  "Inconsistencies between claim description and documentation",
+  "Refer to specialist investigation team for detailed review",
   "Other",
 ];
 
@@ -808,7 +823,7 @@ export default function ClaimDetail() {
                   <SelectValue placeholder="Select a reason" />
                 </SelectTrigger>
                 <SelectContent>
-                  {DECISION_REASONS.map((reason) => (
+                  {APPROVE_REASONS.map((reason) => (
                     <SelectItem key={reason} value={reason}>
                       {reason}
                     </SelectItem>
@@ -863,7 +878,7 @@ export default function ClaimDetail() {
                   <SelectValue placeholder="Select a reason" />
                 </SelectTrigger>
                 <SelectContent>
-                  {DECISION_REASONS.map((reason) => (
+                  {REJECT_REASONS.map((reason) => (
                     <SelectItem key={reason} value={reason}>
                       {reason}
                     </SelectItem>
