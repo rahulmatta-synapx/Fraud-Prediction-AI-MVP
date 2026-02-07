@@ -1,5 +1,5 @@
 import { Switch, Route } from "wouter";
-import { queryClient } from "./lib/queryClient";
+import { queryClient, setSessionExpiredHandler } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,6 +10,8 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { LogOut, User } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useEffect } from "react";
 
 import Dashboard from "@/pages/dashboard";
 import ClaimsList from "@/pages/claims-list";
@@ -36,6 +38,22 @@ function Router() {
 
 function AuthenticatedApp() {
   const { user, logout, isAuthenticated, isLoading } = useAuth();
+  const { toast } = useToast();
+
+  // Set up session expired handler
+  useEffect(() => {
+    setSessionExpiredHandler(() => {
+      toast({
+        variant: "destructive",
+        title: "Session Expired",
+        description: "Your session has expired. Please login again.",
+      });
+      // Logout after a short delay so user can see the message
+      setTimeout(() => {
+        logout();
+      }, 1500);
+    });
+  }, [logout, toast]);
 
   if (isLoading) {
     return (
@@ -79,7 +97,7 @@ function AuthenticatedApp() {
               <ThemeToggle />
             </div>
           </header>
-          <main className="flex-1 overflow-auto bg-background">
+          <main className="flex-1 overflow-auto">
             <Router />
           </main>
         </div>

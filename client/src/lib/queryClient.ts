@@ -6,10 +6,25 @@ import { getAuthToken } from "./auth";
  * It will fallback to an empty string if we want to use relative paths, 
  * but for your current Azure setup, it ensures requests hit the App Service.
  */
-const API_BASE_URL = import.meta.env.VITE_API_URL || "";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
+// Session expiry handler - will be set by the app
+let sessionExpiredHandler: (() => void) | null = null;
+
+export function setSessionExpiredHandler(handler: () => void) {
+  sessionExpiredHandler = handler;
+}
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
+    // Handle 401 Unauthorized - Session expired
+    if (res.status === 401) {
+      if (sessionExpiredHandler) {
+        sessionExpiredHandler();
+      }
+      throw new Error("Session expired. Please login again.");
+    }
+    
     // Check if response is JSON to avoid "Unexpected end of JSON" errors
     const contentType = res.headers.get("content-type");
     let errorMessage = res.statusText;
@@ -98,6 +113,14 @@ export const getQueryFn: <T>(options: {
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
       return null;
+    }
+    
+    // Handle 401 for queries
+    if (res.status === 401) {
+      if (sessionExpiredHandler) {
+        sessionExpiredHandler();
+      }
+      throw new Error("Session expired. Please login again.");
     }
 
     await throwIfResNotOk(res);
