@@ -162,6 +162,47 @@ const REJECT_REASONS = [
   "Other",
 ];
 
+const FIELD_LABEL_MAP: Record<string, string> = {
+  claimant_name: "Claimant Name",
+  policy_id: "Policy ID",
+  num_previous_claims: "Number of Previous Claims",
+  total_previous_claims_gbp: "Total Previous Claims (£)",
+  vehicle_make: "Vehicle Make",
+  vehicle_model: "Vehicle Model",
+  vehicle_year: "Vehicle Year",
+  vehicle_registration: "Vehicle Registration",
+  vehicle_estimated_value_gbp: "Vehicle Estimated Value (£)",
+  accident_date: "Accident Date",
+  accident_type: "Accident Type",
+  accident_location: "Accident Location",
+  claim_amount_gbp: "Claim Amount (£)",
+  accident_description: "Accident Description",
+  status: "Status",
+  fraud_score: "Fraud Score",
+  risk_band: "Risk Band",
+  created_by: "Created By",
+  created_at: "Created At",
+  updated_at: "Updated At",
+  scored_at: "Scored At",
+  in_review_by: "In Review By",
+  in_review_at: "In Review At",
+  decided_by: "Decided By",
+  decided_at: "Decided At",
+  decision_reason: "Decision Reason",
+  decision_notes: "Decision Notes",
+};
+
+const getFieldLabel = (fieldName: string): string => {
+  if (FIELD_LABEL_MAP[fieldName]) {
+    return FIELD_LABEL_MAP[fieldName];
+  }
+  // Fallback: convert snake_case to Title Case
+  return fieldName
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
 export default function ClaimDetail() {
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
@@ -319,7 +360,8 @@ export default function ClaimDetail() {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          {canMarkInReview && (
+          {/* Show Mark In Review button ONLY when status is needs_review */}
+          {claim.status === "needs_review" && (
             <Button
               variant="outline"
               className="gap-2 border-blue-600 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950"
@@ -331,7 +373,9 @@ export default function ClaimDetail() {
               Mark In Review
             </Button>
           )}
-          {canDecide && (
+          
+          {/* Show Approve/Reject buttons ONLY when status is in_review */}
+          {claim.status === "in_review" && (
             <div className="flex gap-2">
               <Button
                 variant="outline"
@@ -353,13 +397,17 @@ export default function ClaimDetail() {
               </Button>
             </div>
           )}
-          {isInReview && claim.in_review_by && (
+          
+          {/* Show "In review by" message when status is in_review */}
+          {claim.status === "in_review" && claim.in_review_by && (
             <div className="flex items-center gap-2 text-muted-foreground">
               <Eye className="h-4 w-4" />
               <span className="text-sm">In review by {claim.in_review_by}</span>
             </div>
           )}
-          {isDecided && (
+          
+          {/* Show read-only message when decision is made */}
+          {(claim.status === "approved" || claim.status === "rejected") && (
             <div className="flex items-center gap-2 text-muted-foreground">
               <Lock className="h-4 w-4" />
               <span className="text-sm">Decision made - Claim is now read-only</span>
@@ -743,7 +791,7 @@ export default function ClaimDetail() {
                               <p className="text-xs text-muted-foreground">{log.user_name}</p>
                               {log.field_changed && (
                                 <p className="text-sm mt-1">
-                                  <span className="text-muted-foreground">{log.field_changed}:</span>{" "}
+                                  <span className="font-medium">{getFieldLabel(log.field_changed)}:</span>{" "}
                                   {log.old_value && (
                                     <span className="line-through text-muted-foreground">
                                       {log.field_changed === "status" ? formatStatusValue(log.old_value) : log.old_value}
@@ -831,7 +879,7 @@ export default function ClaimDetail() {
                 <div className="space-y-2">
                   {claim.field_edits.map((edit, idx) => (
                     <div key={idx} className="text-sm p-2 rounded bg-amber-50 dark:bg-amber-950/20">
-                      <p className="font-medium">{edit.field_name}</p>
+                      <p className="font-medium">{getFieldLabel(edit.field_name)}</p>
                       <p className="text-muted-foreground">
                         <span className="line-through">{edit.original_value}</span>
                         {" → "}
