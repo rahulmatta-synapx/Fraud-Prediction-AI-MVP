@@ -30,14 +30,19 @@ export default function ClaimsList() {
   const searchString = useSearch();
   const params = new URLSearchParams(searchString);
   const riskFromUrl = params.get("risk");
+  const statusFromUrl = params.get("status");
   
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>(statusFromUrl || "all");
   const [riskFilter, setRiskFilter] = useState<string>(riskFromUrl || "all");
 
   useEffect(() => {
     setRiskFilter(riskFromUrl || "all");
   }, [riskFromUrl]);
+
+  useEffect(() => {
+    setStatusFilter(statusFromUrl || "all");
+  }, [statusFromUrl]);
 
   const { data: claims = [], isLoading } = useQuery<ClaimSummary[]>({
     queryKey: ["/api/claims"],
@@ -93,11 +98,17 @@ export default function ClaimsList() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold">
-            {riskFilter === "high" ? "High Risk Claims" : "All Claims"}
+            {riskFilter === "high" 
+              ? "High Risk Claims" 
+              : statusFilter === "in_review" 
+              ? "In Review Claims" 
+              : "All Claims"}
           </h1>
           <p className="text-muted-foreground">
             {riskFilter === "high" 
               ? "Review high-risk motor insurance claims requiring attention" 
+              : statusFilter === "in_review"
+              ? "Claims currently under manual investigation"
               : "Browse and manage motor insurance claims"}
           </p>
         </div>

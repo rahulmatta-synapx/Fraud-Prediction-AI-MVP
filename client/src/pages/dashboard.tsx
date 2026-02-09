@@ -73,6 +73,7 @@ export default function Dashboard() {
 
   const highRiskClaims = sortedClaims.filter(c => (c.risk_band || "") === "high");
   const needsReviewClaims = sortedClaims.filter(c => c.status === "needs_review");
+  const inReviewClaims = sortedClaims.filter(c => c.status === "in_review");
 
   const getTotalClaims = () => stats?.total_claims ?? stats?.totalClaims ?? claims.length;
   const getHighRiskClaims = () => stats?.high_risk_claims ?? stats?.highRiskClaims ?? highRiskClaims.length;
@@ -133,6 +134,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
+        {/* Left Column: All Claims (Takes 2/3 width) */}
         <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
             <CardTitle className="text-lg font-semibold">All Claims</CardTitle>
@@ -168,7 +170,7 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedClaims.slice(0, 10).map((claim) => (
+                    {sortedClaims.slice(0, 12).map((claim) => (
                       <tr 
                         key={claim.claim_id || claim.id}
                         className="border-b hover-elevate cursor-pointer"
@@ -217,46 +219,101 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg font-semibold flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-risk-high" />
-              High Risk Priority
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {highRiskClaims.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <p className="text-sm">No high-risk claims</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {highRiskClaims.slice(0, 5).map((claim) => (
-                  <div 
-                    key={claim.claim_id || claim.id}
-                    className="flex items-center justify-between p-3 rounded-lg border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20 hover-elevate cursor-pointer"
-                    onClick={() => handleRowClick(claim.claim_id || claim.id)}
-                    data-testid={`priority-claim-${claim.claim_id || claim.id}`}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-sm">{claim.claim_id || claim.id}</p>
-                        <StatusBadge status={claim.status} />
-                      </div>
-                      <p className="text-xs text-muted-foreground truncate">{claim.claimant_name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        £{Number(claim.claim_amount_gbp || 0).toLocaleString("en-GB")}
-                      </p>
-                    </div>
-                    <div className="text-xl font-bold text-red-600">
-                      {claim.fraud_score ?? "--"}
-                    </div>
+{/* Right Column: Stacked Cards with Fixed Height & Scroll */}
+        <div className="space-y-6">
+          
+          {/* Top Right: High Risk */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-risk-high" />
+                High Risk Priority
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {/* Fixed height container for scrolling and alignment */}
+              <div className="h-[300px] overflow-y-auto pr-2">
+                {highRiskClaims.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-muted-foreground">
+                    <p className="text-sm">No high-risk claims</p>
                   </div>
-                ))}
+                ) : (
+                  <div className="space-y-2">
+                    {/* Removed slice(0,3) so all items render and scrollbar appears if needed */}
+                    {highRiskClaims.map((claim) => (
+                      <div 
+                        key={claim.claim_id || claim.id}
+                        className="flex items-center justify-between p-3 rounded-lg border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20 hover-elevate cursor-pointer"
+                        onClick={() => handleRowClick(claim.claim_id || claim.id)}
+                        data-testid={`priority-claim-${claim.claim_id || claim.id}`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-sm">{claim.claim_id || claim.id}</p>
+                            <StatusBadge status={claim.status} />
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate">{claim.claimant_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            £{Number(claim.claim_amount_gbp || 0).toLocaleString("en-GB")}
+                          </p>
+                        </div>
+                        <div className="text-xl font-bold text-red-600">
+                          {claim.fraud_score ?? "--"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          {/* Bottom Right: In Review */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                <FileText className="h-5 w-5 text-blue-600" />
+                In Review
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {/* Fixed height container for scrolling and alignment */}
+              <div className="h-[300px] overflow-y-auto pr-2">
+                {inReviewClaims.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-muted-foreground">
+                    <p className="text-sm">No claims in review</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {/* Removed slice(0,3) to allow scrolling */}
+                    {inReviewClaims.map((claim) => (
+                      <div 
+                        key={claim.claim_id || claim.id}
+                        className="flex items-center justify-between p-3 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 hover-elevate cursor-pointer"
+                        onClick={() => handleRowClick(claim.claim_id || claim.id)}
+                        data-testid={`in-review-claim-${claim.claim_id || claim.id}`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-sm">{claim.claim_id || claim.id}</p>
+                            <StatusBadge status={claim.status} />
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate">{claim.claimant_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            £{Number(claim.claim_amount_gbp || 0).toLocaleString("en-GB")}
+                          </p>
+                        </div>
+                        <div className="text-xl font-bold text-blue-600">
+                          {claim.fraud_score ?? "--"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       <Card className="bg-primary/5 border-primary/20">

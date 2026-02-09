@@ -22,6 +22,7 @@ interface StatsData {
   low_risk_claims: number;
   pending_review: number;
   needs_review_count: number;
+  in_review_count?: number;
   approved_count: number;
   rejected_count: number;
   decisions_made: number;
@@ -31,9 +32,18 @@ interface StatsData {
   total_value_gbp: number;
 }
 
+interface ClaimSummary {
+  id: string;
+  status: string;
+}
+
 export default function Stats() {
   const { data: stats, isLoading } = useQuery<StatsData>({
     queryKey: ["/api/stats"],
+  });
+
+  const { data: claims = [] } = useQuery<ClaimSummary[]>({
+    queryKey: ["/api/claims"],
   });
 
   if (isLoading) {
@@ -50,6 +60,7 @@ export default function Stats() {
   const mediumRisk = stats?.medium_risk_claims || 0;
   const lowRisk = stats?.low_risk_claims || 0;
   const needsReview = stats?.needs_review_count || stats?.pending_review || 0;
+  const inReviewCount = stats?.in_review_count || claims.filter(c => c.status === "in_review").length;
   const approved = stats?.approved_count || 0;
   const rejected = stats?.rejected_count || 0;
   const decisionsMade = stats?.decisions_made || 0;
@@ -97,9 +108,9 @@ export default function Stats() {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatsCard
-          title="Needs Review"
-          value={needsReview}
-          description="Awaiting decision"
+          title="Review Queue"
+          value={needsReview + inReviewCount}
+          description={`Needs Review: ${needsReview} • In Review: ${inReviewCount}`}
           icon={Clock}
           className="border-amber-500/20"
         />
