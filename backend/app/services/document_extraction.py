@@ -5,27 +5,28 @@ from typing import Dict, Any
 from openai import OpenAI
 
 def get_openai_client() -> OpenAI:
-    """Get OpenAI client configured for Azure endpoint."""
-    endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT")
+    """Get OpenAI client configured for the direct Azure OpenAI resource."""
+    # This should be the .openai.azure.com endpoint
+    endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT") 
     api_key = os.environ.get("AZURE_OPENAI_KEY")
     
     if not endpoint or not api_key:
-        raise ValueError("Azure OpenAI credentials not configured. Set AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_KEY.")
+        raise ValueError("Azure OpenAI credentials not configured.")
     
-    endpoint = endpoint.strip().strip('"').strip("'")
-    api_key = api_key.strip().strip('"').strip("'")
+    # Strip quotes and trailing slashes
+    endpoint = endpoint.strip().strip('"').strip("'").rstrip("/")
     
-    if not endpoint.endswith("/"):
-        endpoint = endpoint + "/"
-    
+    # Construct the base_url exactly as in your working example
     return OpenAI(
-        base_url=endpoint + "openai/v1/",
+        base_url=f"{endpoint}/openai/v1/",
         api_key=api_key
     )
 
 EXTRACTION_PROMPT = '''Extract all the following fields from this UK motor insurance claim document accurately. Return only JSON with these exact keys:
 - claimant_name: Full name of the claimant/policyholder (string or null)
 - policy_id: Policy number/ID (string or null)
+- policy_start_date: Date when policy started in YYYY-MM-DD format (string or null)
+- policyholder_address: Full address of the policyholder (string or null)
 - num_previous_claims: Number of previous claims (integer, default 0)
 - total_previous_claims_gbp: Total amount of previous claims in GBP (float, default 0.0)
 - vehicle_make: Vehicle manufacturer e.g. BMW, Ford, Toyota (string or null)
@@ -38,6 +39,17 @@ EXTRACTION_PROMPT = '''Extract all the following fields from this UK motor insur
 - accident_location: Location where accident occurred (string or null)
 - claim_amount_gbp: Claimed amount in GBP (float)
 - accident_description: Description of the accident/incident (string or null)
+- witness_name: Name of any witness to the incident (string or null)
+- witness_contact: Contact information (email/phone) for witness (string or null)
+- third_party_name: Name of third party involved in incident (string or null)
+- third_party_contact: Contact information for third party (string or null)
+- third_party_vehicle_reg: Vehicle registration of third party vehicle (string or null)
+- third_party_insurance: Insurance company name for third party (string or null)
+- repair_invoice_date: Date on any repair invoice in YYYY-MM-DD format (string or null)
+- estimate_date: Date on any repair estimate in YYYY-MM-DD format (string or null)
+- invoice_date: Date on any invoice in YYYY-MM-DD format (string or null)
+- quote_date: Date on any quote in YYYY-MM-DD format (string or null)
+- document_date: Any other relevant document date in YYYY-MM-DD format (string or null)
 - extraction_confidence: Your confidence in the extraction from 0.0 to 1.0 (float)
 - extraction_notes: Any notes about what could or couldn't be extracted (string)
 
@@ -147,6 +159,8 @@ async def extract_fields_from_document(
         return {
             "claimant_name": extracted.get("claimant_name"),
             "policy_id": extracted.get("policy_id"),
+            "policy_start_date": extracted.get("policy_start_date"),
+            "policyholder_address": extracted.get("policyholder_address"),
             "num_previous_claims": int(extracted.get("num_previous_claims", 0) or 0),
             "total_previous_claims_gbp": float(extracted.get("total_previous_claims_gbp", 0) or 0),
             "vehicle_make": extracted.get("vehicle_make"),
@@ -159,6 +173,17 @@ async def extract_fields_from_document(
             "accident_location": extracted.get("accident_location"),
             "claim_amount_gbp": float(extracted.get("claim_amount_gbp", 0) or 0),
             "accident_description": extracted.get("accident_description"),
+            "witness_name": extracted.get("witness_name"),
+            "witness_contact": extracted.get("witness_contact"),
+            "third_party_name": extracted.get("third_party_name"),
+            "third_party_contact": extracted.get("third_party_contact"),
+            "third_party_vehicle_reg": extracted.get("third_party_vehicle_reg"),
+            "third_party_insurance": extracted.get("third_party_insurance"),
+            "repair_invoice_date": extracted.get("repair_invoice_date"),
+            "estimate_date": extracted.get("estimate_date"),
+            "invoice_date": extracted.get("invoice_date"),
+            "quote_date": extracted.get("quote_date"),
+            "document_date": extracted.get("document_date"),
             "extraction_confidence": float(extracted.get("extraction_confidence", 0.5) or 0.5),
             "extraction_notes": extracted.get("extraction_notes", "")
         }

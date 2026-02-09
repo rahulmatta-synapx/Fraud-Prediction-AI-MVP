@@ -54,6 +54,8 @@ const ACCIDENT_TYPES = [
 const submitClaimSchema = z.object({
   claimant_name: z.string().min(1, "Claimant name is required"),
   policy_id: z.string().min(1, "Policy ID is required"),
+  policy_start_date: z.string().optional(),
+  policyholder_address: z.string().optional(),
   num_previous_claims: z.coerce.number().int().min(0),
   total_previous_claims_gbp: z.coerce.number().min(0),
   vehicle_make: z.string().min(1, "Vehicle make is required"),
@@ -66,6 +68,12 @@ const submitClaimSchema = z.object({
   accident_location: z.string().min(1, "Location is required"),
   claim_amount_gbp: z.coerce.number().min(0),
   accident_description: z.string().min(10, "Please provide a detailed description"),
+  witness_name: z.string().optional(),
+  witness_contact: z.string().optional(),
+  third_party_name: z.string().optional(),
+  third_party_contact: z.string().optional(),
+  third_party_vehicle_reg: z.string().optional(),
+  third_party_insurance: z.string().optional(),
 });
 
 type SubmitClaimForm = z.infer<typeof submitClaimSchema>;
@@ -94,6 +102,8 @@ export default function SubmitClaim() {
     defaultValues: {
       claimant_name: "",
       policy_id: "",
+      policy_start_date: "",
+      policyholder_address: "",
       num_previous_claims: 0,
       total_previous_claims_gbp: 0,
       vehicle_make: "",
@@ -106,6 +116,12 @@ export default function SubmitClaim() {
       accident_location: "",
       claim_amount_gbp: 0,
       accident_description: "",
+      witness_name: "",
+      witness_contact: "",
+      third_party_name: "",
+      third_party_contact: "",
+      third_party_vehicle_reg: "",
+      third_party_insurance: "",
     },
   });
 
@@ -153,6 +169,8 @@ export default function SubmitClaim() {
       const fieldMapping: { [key: string]: keyof SubmitClaimForm } = {
         claimant_name: "claimant_name",
         policy_id: "policy_id",
+        policy_start_date: "policy_start_date",
+        policyholder_address: "policyholder_address",
         num_previous_claims: "num_previous_claims",
         total_previous_claims_gbp: "total_previous_claims_gbp",
         vehicle_make: "vehicle_make",
@@ -165,6 +183,12 @@ export default function SubmitClaim() {
         accident_location: "accident_location",
         claim_amount_gbp: "claim_amount_gbp",
         accident_description: "accident_description",
+        witness_name: "witness_name",
+        witness_contact: "witness_contact",
+        third_party_name: "third_party_name",
+        third_party_contact: "third_party_contact",
+        third_party_vehicle_reg: "third_party_vehicle_reg",
+        third_party_insurance: "third_party_insurance",
       };
 
       Object.entries(fieldMapping).forEach(([extractedKey, formKey]) => {
@@ -491,6 +515,140 @@ export default function SubmitClaim() {
                     <FormLabel>Total Previous Claims (GBP)</FormLabel>
                     <FormControl>
                       <Input type="number" placeholder="0" data-testid="input-previous-amount" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="policy_start_date"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Policy Start Date (Optional)</FormLabel>
+                    <FormControl>
+                      <Input type="date" data-testid="input-policy-start-date" {...field} />
+                    </FormControl>
+                    <FormDescription>For early policy claim detection</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="policyholder_address"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Policyholder Address (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="123 Main Street, London" data-testid="input-policyholder-address" {...field} />
+                    </FormControl>
+                    <FormDescription>For unusual location detection</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <User className="h-5 w-5 text-primary" />
+                Witness Information (Optional)
+              </CardTitle>
+              <CardDescription>
+                If there were witnesses to the incident, provide their details
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="witness_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Witness Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Jane Doe" data-testid="input-witness-name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="witness_contact"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Witness Contact</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Email or phone number" data-testid="input-witness-contact" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <User className="h-5 w-5 text-primary" />
+                Third-Party Information (Optional)
+              </CardTitle>
+              <CardDescription>
+                If another party was involved, provide their details
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="third_party_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Third Party Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="John Doe" data-testid="input-third-party-name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="third_party_contact"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Third Party Contact</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Email or phone number" data-testid="input-third-party-contact" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="third_party_vehicle_reg"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Third Party Vehicle Registration</FormLabel>
+                    <FormControl>
+                      <Input placeholder="AB21 XYZ" data-testid="input-third-party-vehicle-reg" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="third_party_insurance"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Third Party Insurance</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Insurance company name" data-testid="input-third-party-insurance" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

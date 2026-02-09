@@ -851,15 +851,15 @@ export default function ClaimDetail() {
                   {claim.rule_triggers?.length || 0} rule{(claim.rule_triggers?.length || 0) !== 1 ? "s" : ""} triggered
                 </p>
                 <div className="space-y-1.5">
-                  {claim.rule_triggers?.slice(0, 5).map((rule, idx) => (
+                  {claim.rule_triggers?.slice(0, 10).map((rule, idx) => (
                     <div key={idx} className="flex items-center justify-between text-sm">
                       <span className="truncate">{rule.rule_name}</span>
                       <Badge variant="outline" className="text-xs">+{rule.weight}</Badge>
                     </div>
                   ))}
-                  {(claim.rule_triggers?.length || 0) > 5 && (
+                  {(claim.rule_triggers?.length || 0) > 10 && (
                     <p className="text-xs text-muted-foreground">
-                      +{(claim.rule_triggers?.length || 0) - 5} more rules
+                      +{(claim.rule_triggers?.length || 0) - 10} more rules
                     </p>
                   )}
                 </div>

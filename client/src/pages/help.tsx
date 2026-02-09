@@ -40,17 +40,9 @@ const RULES: RuleInfo[] = [
     trigger: "Claim submission date - Incident date > 14 days"
   },
   {
-    id: "suspicious_timing",
-    name: "Suspicious Timing",
-    description: "Claim submitted between 11pm and 5am",
-    weight: 10,
-    category: "Claim Timing",
-    trigger: "Claim submitted between 23:00 and 05:00"
-  },
-  {
     id: "early_policy_claim",
     name: "Early Policy Claim",
-    description: "Claim filed on a new policy within 7 days of incident",
+    description: "Claim filed on a new policy within 7 days of policy start",
     weight: 30,
     category: "Policyholder Behaviour",
     trigger: "New policy (0 previous claims) with incident within 7 days of policy start"

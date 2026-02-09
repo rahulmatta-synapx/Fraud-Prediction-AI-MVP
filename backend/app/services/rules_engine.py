@@ -27,17 +27,33 @@ def late_notification(claim: Dict[str, Any], signals: List[Dict[str, Any]]) -> b
         
         if not accident_date_str or not created_at_str:
             return False
-            
-        if "T" in accident_date_str:
-            accident_date = datetime.fromisoformat(accident_date_str.replace("Z", "+00:00"))
-        else:
-            accident_date = datetime.strptime(accident_date_str, "%Y-%m-%d")
-            
-        created_at = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
         
+        # Handle both ISO format and simple date format, including future dates
+        try:
+            if "T" in str(accident_date_str):
+                accident_date = datetime.fromisoformat(str(accident_date_str).replace("Z", "+00:00"))
+            else:
+                # Try multiple date formats
+                for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"]:
+                    try:
+                        accident_date = datetime.strptime(str(accident_date_str), fmt)
+                        break
+                    except ValueError:
+                        continue
+                else:
+                    return False
+        except Exception:
+            return False
+            
+        try:
+            created_at = datetime.fromisoformat(str(created_at_str).replace("Z", "+00:00"))
+        except Exception:
+            return False
+        
+        # Remove timezone info for comparison
         days_diff = (created_at.replace(tzinfo=None) - accident_date.replace(tzinfo=None)).days
         return days_diff > 14
-    except Exception:
+    except Exception as e:
         return False
 
 
@@ -56,28 +72,77 @@ def suspicious_timing(claim: Dict[str, Any], signals: List[Dict[str, Any]]) -> b
 
 
 def early_policy_claim(claim: Dict[str, Any], signals: List[Dict[str, Any]]) -> bool:
-    """IF Policy_Start_Date <= Incident_Date <= Policy_Start_Date + 7 days → Early_Policy_Claim (+30)
-    Uses heuristic: if num_previous_claims is 0 (new policy) and claim filed within 7 days of accident
-    """
+    """IF Policy_Start_Date <= Incident_Date <= Policy_Start_Date + 7 days → Early_Policy_Claim (+30)"""
     try:
+        # Check if policy is new (num_previous_claims is 0)
         if claim.get("num_previous_claims", 0) > 0:
             return False
             
+        policy_start_str = claim.get("policy_start_date")
         accident_date_str = claim.get("accident_date")
-        created_at_str = claim.get("created_at")
         
-        if not accident_date_str or not created_at_str:
-            return False
-            
-        if "T" in accident_date_str:
-            accident_date = datetime.fromisoformat(accident_date_str.replace("Z", "+00:00"))
-        else:
-            accident_date = datetime.strptime(accident_date_str, "%Y-%m-%d")
-            
-        created_at = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+        # If we have policy_start_date, use it for accurate detection
+        if policy_start_str and accident_date_str:
+            try:
+                # Parse policy start date
+                if "T" in str(policy_start_str):
+                    policy_start = datetime.fromisoformat(str(policy_start_str).replace("Z", "+00:00"))
+                else:
+                    for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"]:
+                        try:
+                            policy_start = datetime.strptime(str(policy_start_str), fmt)
+                            break
+                        except ValueError:
+                            continue
+                    else:
+                        return False
+                
+                # Parse accident date
+                if "T" in str(accident_date_str):
+                    accident_date = datetime.fromisoformat(str(accident_date_str).replace("Z", "+00:00"))
+                else:
+                    for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"]:
+                        try:
+                            accident_date = datetime.strptime(str(accident_date_str), fmt)
+                            break
+                        except ValueError:
+                            continue
+                    else:
+                        return False
+                
+                days_since_policy_start = (accident_date.replace(tzinfo=None) - policy_start.replace(tzinfo=None)).days
+                # Incident must be within 7 days of policy start and after or on policy start
+                return 0 <= days_since_policy_start <= 7
+            except Exception:
+                pass
         
-        days_since_accident = (created_at.replace(tzinfo=None) - accident_date.replace(tzinfo=None)).days
-        return days_since_accident <= 7
+        # Fallback: if no policy_start_date, check if new policy and accident happened recently
+        if accident_date_str:
+            created_at_str = claim.get("created_at")
+            if not created_at_str:
+                return False
+            
+            try:
+                if "T" in str(accident_date_str):
+                    accident_date = datetime.fromisoformat(str(accident_date_str).replace("Z", "+00:00"))
+                else:
+                    for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"]:
+                        try:
+                            accident_date = datetime.strptime(str(accident_date_str), fmt)
+                            break
+                        except ValueError:
+                            continue
+                    else:
+                        return False
+                    
+                created_at = datetime.fromisoformat(str(created_at_str).replace("Z", "+00:00"))
+                
+                days_since_accident = (created_at.replace(tzinfo=None) - accident_date.replace(tzinfo=None)).days
+                return days_since_accident <= 7
+            except Exception:
+                return False
+            
+        return False
     except Exception:
         return False
 
@@ -146,23 +211,84 @@ def description_mismatch(claim: Dict[str, Any], signals: List[Dict[str, Any]]) -
     if not accident_type or not description:
         return False
     
+    print(f"\n[Description Mismatch Check]")
+    print(f"  Type: '{accident_type}'")
+    print(f"  Desc: '{description[:150]}...'")
+    
+    # Comprehensive contradictions with expanded patterns
     contradictions = {
-        "rear-end": ["head-on", "front damage", "frontal collision", "t-bone", "side impact"],
-        "head-on": ["rear damage", "rear-end", "from behind", "backed into"],
-        "side impact": ["rear damage", "frontal", "head-on"],
-        "theft": ["collision", "crash", "hit", "accident", "damage from impact"],
-        "fire": ["collision", "crash", "hit", "water damage", "flood"],
-        "flood damage": ["fire", "burnt", "smoke damage"],
-        "vandalism": ["collision", "crash", "accident"],
-        "parking damage": ["high speed", "motorway", "highway"],
+        "rear-end": [
+            "head-on", "head on", "frontal", "front damage", "front-end", "front end",
+            "bonnet", "grille", "headlight", "radiator", "bumper front",
+            "hit from front", "from the front", "opposite direction", "coming towards",
+            "front bumper", "front panel", "hood", "fender front"
+        ],
+        "rear end": [
+            "head-on", "head on", "frontal", "front damage", "front-end", "front end",
+            "bonnet", "grille", "headlight", "radiator", "bumper front",
+            "hit from front", "from the front", "opposite direction", "coming towards",
+            "front bumper", "front panel", "hood", "fender front"
+        ],
+        "collision": [],  # Too generic to contradict
+        "side impact": [
+            "rear damage", "rear-end", "rear end", "from behind", "back bumper",
+            "frontal", "head-on", "front bumper", "hit from front",
+            "boot", "trunk", "rear panel"
+        ],
+        "rollover": [
+            "minor damage", "scratches only", "small dent", "no structural damage",
+            "rear-end", "side impact", "head-on"
+        ],
+        "hit and run": [
+            "collision", "impact", "crash", "frontal", "side impact", "rear-end",
+            "other driver", "their vehicle", "they hit", "he hit", "she hit"
+        ],
+        "parking damage": [
+            "high speed", "motorway", "highway", "fast", "60 mph", "70 mph",
+            "speeding", "racing", "collision at speed"
+        ],
+        "theft": [
+            "collision", "crash", "impact", "hit", "bumper", "damage from accident",
+            "dent", "scratched in crash"
+        ],
+        "vandalism": [
+            "collision", "crash", "accident", "hit another", "impact with",
+            "driving", "while moving"
+        ],
+        "fire": [
+            "collision", "crash", "hit", "impact", "water damage", "flood", "wet",
+            "soaked"
+        ],
+        "flood damage": [
+            "fire", "burnt", "burned", "smoke damage", "flames", "ignited",
+            "collision", "crash"
+        ],
     }
     
-    if accident_type in contradictions:
-        for contradiction in contradictions[accident_type]:
-            if contradiction in description:
-                return True
+    # Check all possible variations of the accident type
+    found_contradiction = False
+    matched_pattern = None
     
-    return False
+    for key in contradictions.keys():
+        if key in accident_type or accident_type in key:
+            contradiction_list = contradictions[key]
+            print(f"  Checking {len(contradiction_list)} contradictions for type '{key}'")
+            
+            for contradiction in contradiction_list:
+                # Check if contradiction phrase appears in description
+                if contradiction in description:
+                    found_contradiction = True
+                    matched_pattern = contradiction
+                    print(f"  ✓ CONTRADICTION FOUND: '{contradiction}' in description")
+                    break
+            
+            if found_contradiction:
+                break
+    
+    if not found_contradiction:
+        print(f"  ✗ No contradictions found")
+    
+    return found_contradiction
 
 
 def invalid_document_timeline(claim: Dict[str, Any], signals: List[Dict[str, Any]]) -> bool:
@@ -182,8 +308,9 @@ def invalid_document_timeline(claim: Dict[str, Any], signals: List[Dict[str, Any
 
 def repeat_third_party(claim: Dict[str, Any], signals: List[Dict[str, Any]]) -> bool:
     """IF Same Third_Party appears in >2 claims across different policies → Repeat_Third_Party (+40)
-    Check AI signals for third party patterns
+    Checks both structured third_party_name field and AI signals for patterns
     """
+    # Check AI signals for third party patterns
     for signal in signals:
         signal_type = signal.get("signal_type", "").lower()
         description = signal.get("description", "").lower()
@@ -196,13 +323,22 @@ def repeat_third_party(claim: Dict[str, Any], signals: List[Dict[str, Any]]) -> 
             if "third party" in description or "third-party" in description:
                 return True
     
+    # Note: Cross-claim matching for third_party_name would require database access
+    # This is a placeholder for when historical claim lookup is implemented
+    third_party = claim.get("third_party_name", "")
+    if third_party and len(third_party.strip()) > 0:
+        # Future: Query database for claims with same third_party_name
+        # For now, rely on AI signals
+        pass
+    
     return False
 
 
 def professional_witness(claim: Dict[str, Any], signals: List[Dict[str, Any]]) -> bool:
     """IF Witness_Name matches previous claims → Professional_Witness (+35)
-    Check AI signals for witness patterns
+    Checks both structured witness_name field and AI signals for patterns
     """
+    # Check AI signals for witness patterns
     for signal in signals:
         signal_type = signal.get("signal_type", "").lower()
         description = signal.get("description", "").lower()
@@ -210,6 +346,14 @@ def professional_witness(claim: Dict[str, Any], signals: List[Dict[str, Any]]) -
         if "witness" in signal_type:
             if "repeat" in description or "professional" in description or "same" in description or "multiple" in description:
                 return True
+    
+    # Note: Cross-claim matching for witness_name would require database access
+    # This is a placeholder for when historical claim lookup is implemented
+    witness = claim.get("witness_name", "")
+    if witness and len(witness.strip()) > 0:
+        # Future: Query database for claims with same witness_name
+        # For now, rely on AI signals
+        pass
     
     return False
 
@@ -223,16 +367,9 @@ RULES = [
         late_notification
     ),
     Rule(
-        "suspicious_timing",
-        "Suspicious Timing",
-        "Claim submitted between 11pm and 5am",
-        10,
-        suspicious_timing
-    ),
-    Rule(
         "early_policy_claim",
         "Early Policy Claim",
-        "Claim filed on a new policy within 7 days of incident",
+        "Claim filed on a new policy within 7 days of policy start",
         30,
         early_policy_claim
     ),
@@ -319,7 +456,8 @@ def run_rules_engine(claim: Dict[str, Any], signals: List[Dict[str, Any]]) -> Di
     
     for rule in RULES:
         try:
-            if rule.condition(claim, signals):
+            is_triggered = rule.condition(claim, signals)
+            if is_triggered:
                 triggered_rules.append({
                     "id": str(uuid.uuid4()),
                     "rule_id": rule.id,
@@ -329,8 +467,11 @@ def run_rules_engine(claim: Dict[str, Any], signals: List[Dict[str, Any]]) -> Di
                     "triggered_at": datetime.utcnow().isoformat()
                 })
                 total_weight += rule.weight
+                print(f"  ✓ Rule '{rule.name}' triggered (+{rule.weight})")
+            else:
+                print(f"  ✗ Rule '{rule.name}' not triggered")
         except Exception as e:
-            print(f"Error evaluating rule {rule.id}: {e}")
+            print(f"  ❌ Error evaluating rule {rule.id}: {e}")
             continue
     
     fraud_score = min(100, total_weight)
@@ -364,7 +505,6 @@ def get_rule_category(rule_id: str) -> str:
     """Get the category for a rule."""
     categories = {
         "late_notification": "Claim Timing",
-        "suspicious_timing": "Claim Timing",
         "early_policy_claim": "Policyholder Behaviour",
         "frequent_claimant": "Policyholder Behaviour",
         "vague_location": "Location & Circumstance",

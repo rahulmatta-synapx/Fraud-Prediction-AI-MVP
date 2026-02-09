@@ -84,6 +84,8 @@ class Claim(BaseModel):
     claim_id: str
     claimant_name: str
     policy_id: str
+    policy_start_date: Optional[str] = None
+    policyholder_address: Optional[str] = None
     num_previous_claims: int = 0
     total_previous_claims_gbp: float = 0.0
     vehicle_make: str
@@ -96,6 +98,12 @@ class Claim(BaseModel):
     accident_location: str
     claim_amount_gbp: float
     accident_description: str
+    witness_name: Optional[str] = None
+    witness_contact: Optional[str] = None
+    third_party_name: Optional[str] = None
+    third_party_contact: Optional[str] = None
+    third_party_vehicle_reg: Optional[str] = None
+    third_party_insurance: Optional[str] = None
     documents: List[DocumentInfo] = []
     fraud_score: Optional[int] = None
     risk_band: Optional[RiskBand] = None
@@ -117,6 +125,8 @@ class Claim(BaseModel):
 class ClaimCreate(BaseModel):
     claimant_name: str
     policy_id: str
+    policy_start_date: Optional[str] = None
+    policyholder_address: Optional[str] = None
     num_previous_claims: int = 0
     total_previous_claims_gbp: float = 0.0
     vehicle_make: str
@@ -129,11 +139,19 @@ class ClaimCreate(BaseModel):
     accident_location: str
     claim_amount_gbp: float
     accident_description: str
+    witness_name: Optional[str] = None
+    witness_contact: Optional[str] = None
+    third_party_name: Optional[str] = None
+    third_party_contact: Optional[str] = None
+    third_party_vehicle_reg: Optional[str] = None
+    third_party_insurance: Optional[str] = None
     ai_extracted_fields: Optional[dict] = None
 
 class ClaimFieldsUpdate(BaseModel):
     claimant_name: Optional[str] = None
     policy_id: Optional[str] = None
+    policy_start_date: Optional[str] = None
+    policyholder_address: Optional[str] = None
     num_previous_claims: Optional[int] = None
     total_previous_claims_gbp: Optional[float] = None
     vehicle_make: Optional[str] = None
@@ -146,6 +164,12 @@ class ClaimFieldsUpdate(BaseModel):
     accident_location: Optional[str] = None
     claim_amount_gbp: Optional[float] = None
     accident_description: Optional[str] = None
+    witness_name: Optional[str] = None
+    witness_contact: Optional[str] = None
+    third_party_name: Optional[str] = None
+    third_party_contact: Optional[str] = None
+    third_party_vehicle_reg: Optional[str] = None
+    third_party_insurance: Optional[str] = None
 
 class ClaimUpdate(BaseModel):
     claimant_name: Optional[str] = None
