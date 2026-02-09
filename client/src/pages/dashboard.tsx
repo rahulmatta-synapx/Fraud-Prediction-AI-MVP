@@ -231,8 +231,8 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {/* Fixed height container for scrolling and alignment */}
-              <div className="h-[300px] overflow-y-auto pr-2">
+              {/* Fixed height container with hidden scrollbar (Firefox: scrollbar-width, IE/Edge: -ms-overflow-style, Webkit: ::-webkit-scrollbar) */}
+              <div className="h-[300px] overflow-y-auto pr-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                 {highRiskClaims.length === 0 ? (
                   <div className="h-full flex items-center justify-center text-muted-foreground">
                     <p className="text-sm">No high-risk claims</p>
@@ -277,8 +277,8 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {/* Fixed height container for scrolling and alignment */}
-              <div className="h-[300px] overflow-y-auto pr-2">
+              {/* Fixed height container with hidden scrollbar (Firefox: scrollbar-width, IE/Edge: -ms-overflow-style, Webkit: ::-webkit-scrollbar) */}
+              <div className="h-[300px] overflow-y-auto pr-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                 {inReviewClaims.length === 0 ? (
                   <div className="h-full flex items-center justify-center text-muted-foreground">
                     <p className="text-sm">No claims in review</p>
