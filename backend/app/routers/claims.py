@@ -259,6 +259,50 @@ async def approve_claim(
     
     return claim
 
+@router.post("/claims/{claim_id}/mark-in-review")
+async def mark_in_review(
+    claim_id: str,
+    current_user: TokenData = Depends(get_current_user)
+):
+    """Mark a claim as 'in_review' - any user can do this."""
+    db = get_cosmos_db()
+    claim = db.get_claim(claim_id)
+    if not claim:
+        raise HTTPException(status_code=404, detail="Claim not found")
+    
+    if claim.get("status") != "needs_review":
+        raise HTTPException(
+            status_code=400, 
+            detail="Only claims with 'needs_review' status can be marked as in review"
+        )
+    
+    old_status = claim.get("status")
+    
+    claim["status"] = "in_review"
+    claim["in_review_by"] = current_user.full_name
+    claim["in_review_at"] = datetime.utcnow().isoformat()
+    claim["updated_at"] = datetime.utcnow().isoformat()
+    
+    db.save_claim(claim)
+    
+    db.save_audit_log({
+        "id": str(uuid.uuid4()),
+        "claim_id": claim_id,
+        "user_name": current_user.full_name,
+        "action_type": "STATUS_CHANGE",
+        "field_changed": "status",
+        "old_value": old_status,
+        "new_value": "in_review",
+        "reason_category": None,
+        "notes": f"Claim marked as in review by {current_user.full_name}",
+        "timestamp": datetime.utcnow().isoformat()
+    })
+    
+    audit_logs = db.get_audit_logs(claim_id)
+    claim["audit_logs"] = audit_logs
+    
+    return claim
+
 @router.post("/claims/{claim_id}/reject")
 async def reject_claim(
     claim_id: str,

@@ -51,6 +51,7 @@ import {
   ThumbsUp,
   ThumbsDown,
   Info,
+  Eye,
 } from "lucide-react";
 
 interface Claim {
@@ -137,6 +138,8 @@ interface Claim {
   updated_at: string;
   scored_at: string | null;
   created_by: string;
+  in_review_by?: string;
+  in_review_at?: string;
   decision_reason?: string;
   decision_notes?: string;
   decided_by?: string;
@@ -205,6 +208,20 @@ export default function ClaimDetail() {
     },
   });
 
+  const markInReviewMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", `/api/claims/${id}/mark-in-review`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/claims", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/claims"] });
+      toast({ title: "Claim marked as in review" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error marking claim as in review", description: error.message, variant: "destructive" });
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="p-6 space-y-6">
@@ -238,6 +255,19 @@ export default function ClaimDetail() {
 
   const isDecided = claim.status === "approved" || claim.status === "rejected";
   const canDecide = !isDecided;
+  const canMarkInReview = claim.status === "needs_review";
+  const isInReview = claim.status === "in_review";
+
+  const formatStatusValue = (status: string) => {
+    const mapping: { [key: string]: string } = {
+      needs_review: "Needs Review",
+      in_review: "In Review",
+      approved: "Approved",
+      rejected: "Rejected",
+      rescored: "Rescored",
+    };
+    return mapping[status] || status;
+  };
 
   const formatActionType = (action: string) => {
     const mapping: { [key: string]: string } = {
@@ -289,6 +319,18 @@ export default function ClaimDetail() {
           </div>
         </div>
         <div className="flex items-center gap-4">
+          {canMarkInReview && (
+            <Button
+              variant="outline"
+              className="gap-2 border-blue-600 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950"
+              onClick={() => markInReviewMutation.mutate()}
+              disabled={markInReviewMutation.isPending}
+              data-testid="button-mark-in-review"
+            >
+              <Eye className="h-4 w-4" />
+              Mark In Review
+            </Button>
+          )}
           {canDecide && (
             <div className="flex gap-2">
               <Button
@@ -309,6 +351,12 @@ export default function ClaimDetail() {
                 <ThumbsDown className="h-4 w-4" />
                 Reject
               </Button>
+            </div>
+          )}
+          {isInReview && claim.in_review_by && (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Eye className="h-4 w-4" />
+              <span className="text-sm">In review by {claim.in_review_by}</span>
             </div>
           )}
           {isDecided && (
@@ -696,9 +744,15 @@ export default function ClaimDetail() {
                               {log.field_changed && (
                                 <p className="text-sm mt-1">
                                   <span className="text-muted-foreground">{log.field_changed}:</span>{" "}
-                                  {log.old_value && <span className="line-through text-muted-foreground">{log.old_value}</span>}
+                                  {log.old_value && (
+                                    <span className="line-through text-muted-foreground">
+                                      {log.field_changed === "status" ? formatStatusValue(log.old_value) : log.old_value}
+                                    </span>
+                                  )}
                                   {log.old_value && " → "}
-                                  <span className="font-medium">{log.new_value}</span>
+                                  <span className="font-medium">
+                                    {log.field_changed === "status" ? formatStatusValue(log.new_value || "") : log.new_value}
+                                  </span>
                                 </p>
                               )}
                               {log.notes && (

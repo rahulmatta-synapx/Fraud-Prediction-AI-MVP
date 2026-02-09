@@ -21,7 +21,7 @@ ReasonCategory = Literal[
 
 RiskBand = Literal["high", "medium", "low"]
 
-ClaimStatus = Literal["needs_review", "rescored", "approved", "rejected"]
+ClaimStatus = Literal["needs_review", "in_review", "rescored", "approved", "rejected"]
 
 class User(BaseModel):
     username: str
@@ -107,6 +107,8 @@ class Claim(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     scored_at: Optional[datetime] = None
     created_by: str = "system"
+    in_review_by: Optional[str] = None
+    in_review_at: Optional[datetime] = None
     decision_reason: Optional[str] = None
     decision_notes: Optional[str] = None
     decided_by: Optional[str] = None
