@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   BarChart3,
   HelpCircle,
+  FileText,
 } from "lucide-react";
 
 const mainItems = [
@@ -43,6 +44,11 @@ const analysisItems = [
     title: "High Risk",
     url: "/claims?risk=high",
     icon: AlertTriangle,
+  },
+  {
+    title: "In Review",
+    url: "/claims?status=in_review", // Filters for in-review status
+    icon: FileText,
   },
   {
     title: "Statistics",
