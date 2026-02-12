@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { getStatusDisplay, getApproveButtonText, getRejectButtonText } from "@/lib/status-utils";
 import { 
   Book, 
   Scale, 
@@ -212,6 +213,22 @@ export default function HelpPage() {
             </div>
             <div className="flex items-start gap-4">
               <div className="flex flex-col items-center">
+                <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-full">
+                  <RefreshCw className="h-5 w-5 text-blue-600" />
+                </div>
+                <div className="w-0.5 h-8 bg-border" />
+              </div>
+              <div className="pb-4">
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20">In Review</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Analyst marks the claim as "In Review" to indicate they are actively investigating it.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-4">
+              <div className="flex flex-col items-center">
                 <div className="flex gap-2">
                   <div className="p-2 bg-green-100 dark:bg-green-900 rounded-full">
                     <CheckCircle2 className="h-5 w-5 text-green-600" />
@@ -223,9 +240,9 @@ export default function HelpPage() {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Approved</Badge>
+                  <Badge className="bg-green-500/10 text-green-600 border-green-500/20">{getStatusDisplay("approved")}</Badge>
                   <span className="text-muted-foreground">or</span>
-                  <Badge className="bg-red-500/10 text-red-600 border-red-500/20">Rejected</Badge>
+                  <Badge className="bg-red-500/10 text-red-600 border-red-500/20">{getStatusDisplay("rejected")}</Badge>
                 </div>
                 <p className="text-sm text-muted-foreground mt-1">
                   Make the final decision. You must provide a reason and notes. You can approve high-risk or reject low-risk claims — the decision is yours.

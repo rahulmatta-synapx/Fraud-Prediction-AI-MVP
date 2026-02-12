@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatsCard } from "@/components/stats-card";
+import { getStatusDisplay } from "@/lib/status-utils";
 import { 
   FileText, 
   AlertTriangle, 
@@ -115,16 +116,16 @@ export default function Stats() {
           className="border-amber-500/20"
         />
         <StatsCard
-          title="Approved"
+          title={getStatusDisplay("approved")}
           value={approved}
-          description="Claims approved"
+          description="Claims cleared"
           icon={CheckCircle2}
           className="border-green-500/20"
         />
         <StatsCard
-          title="Rejected"
+          title={getStatusDisplay("rejected")}
           value={rejected}
-          description="Claims rejected"
+          description="Escalated to investigation"
           icon={XCircle}
           className="border-red-500/20"
         />
@@ -252,7 +253,7 @@ export default function Stats() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-green-500" />
-                  <span>Approved</span>
+                  <span>{getStatusDisplay("approved")}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-bold">{approved}</span>
@@ -271,7 +272,7 @@ export default function Stats() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-red-500" />
-                  <span>Rejected</span>
+                  <span>{getStatusDisplay("rejected")}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-bold">{rejected}</span>

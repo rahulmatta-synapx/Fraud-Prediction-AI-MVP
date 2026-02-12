@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ClaimsTable } from "@/components/claims-table";
+import { getStatusDisplay } from "@/lib/status-utils";
 import { Plus, Search, Filter, Download } from "lucide-react";
 
 interface ClaimSummary {
@@ -149,8 +150,8 @@ export default function ClaimsList() {
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="needs_review">Needs Review</SelectItem>
                   <SelectItem value="in_review">In Review</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="approved">{getStatusDisplay("approved")}</SelectItem>
+                  <SelectItem value="rejected">{getStatusDisplay("rejected")}</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={riskFilter} onValueChange={setRiskFilter}>

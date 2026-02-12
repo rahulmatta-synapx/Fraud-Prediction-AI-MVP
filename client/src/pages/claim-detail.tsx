@@ -30,6 +30,17 @@ import { StatusBadge } from "@/components/status-badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
+  getStatusDisplay,
+  getDecisionSentence,
+  getActionTypeDisplay,
+  getApproveButtonText,
+  getRejectButtonText,
+  getApproveModalTitle,
+  getRejectModalTitle,
+  getApproveSuccessMessage,
+  getRejectSuccessMessage,
+} from "@/lib/status-utils";
+import {
   ArrowLeft,
   Car,
   Calendar,
@@ -52,6 +63,7 @@ import {
   ThumbsDown,
   Info,
   Eye,
+  Loader2,
 } from "lucide-react";
 
 interface Claim {
@@ -219,16 +231,20 @@ export default function ClaimDetail() {
     mutationFn: async () => {
       return apiRequest("POST", `/api/claims/${id}/approve`, { reason: decisionReason, notes: decisionNotes });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/claims", id] });
-      queryClient.invalidateQueries({ queryKey: ["/api/claims"] });
-      toast({ title: "Claim approved successfully" });
+    onSuccess: async () => {
+      // Invalidate and wait for refetch to complete
+      await queryClient.invalidateQueries({ queryKey: ["/api/claims", id] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/claims"] });
+      toast({ title: getApproveSuccessMessage() });
+    },
+    onSettled: () => {
+      // Close modal after everything completes (success or error)
       setShowApproveModal(false);
       setDecisionReason("");
       setDecisionNotes("");
     },
     onError: (error: Error) => {
-      toast({ title: "Error approving claim", description: error.message, variant: "destructive" });
+      toast({ title: "Error clearing claim", description: error.message, variant: "destructive" });
     },
   });
 
@@ -236,16 +252,20 @@ export default function ClaimDetail() {
     mutationFn: async () => {
       return apiRequest("POST", `/api/claims/${id}/reject`, { reason: decisionReason, notes: decisionNotes });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/claims", id] });
-      queryClient.invalidateQueries({ queryKey: ["/api/claims"] });
-      toast({ title: "Claim rejected successfully" });
+    onSuccess: async () => {
+      // Invalidate and wait for refetch to complete
+      await queryClient.invalidateQueries({ queryKey: ["/api/claims", id] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/claims"] });
+      toast({ title: getRejectSuccessMessage() });
+    },
+    onSettled: () => {
+      // Close modal after everything completes (success or error)
       setShowRejectModal(false);
       setDecisionReason("");
       setDecisionNotes("");
     },
     onError: (error: Error) => {
-      toast({ title: "Error rejecting claim", description: error.message, variant: "destructive" });
+      toast({ title: "Error escalating claim", description: error.message, variant: "destructive" });
     },
   });
 
@@ -253,10 +273,13 @@ export default function ClaimDetail() {
     mutationFn: async () => {
       return apiRequest("POST", `/api/claims/${id}/mark-in-review`, {});
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/claims", id] });
-      queryClient.invalidateQueries({ queryKey: ["/api/claims"] });
+    onSuccess: async () => {
+      // Invalidate and wait for refetch to complete
+      
+      await queryClient.invalidateQueries({ queryKey: ["/api/claims", id] });
       toast({ title: "Claim marked as in review" });
+      await queryClient.invalidateQueries({ queryKey: ["/api/claims"] });
+
     },
     onError: (error: Error) => {
       toast({ title: "Error marking claim as in review", description: error.message, variant: "destructive" });
@@ -298,32 +321,6 @@ export default function ClaimDetail() {
   const canDecide = !isDecided;
   const canMarkInReview = claim.status === "needs_review";
   const isInReview = claim.status === "in_review";
-
-  const formatStatusValue = (status: string) => {
-    const mapping: { [key: string]: string } = {
-      needs_review: "Needs Review",
-      in_review: "In Review",
-      approved: "Approved",
-      rejected: "Rejected",
-      rescored: "Rescored",
-    };
-    return mapping[status] || status;
-  };
-
-  const formatActionType = (action: string) => {
-    const mapping: { [key: string]: string } = {
-      CLAIM_CREATED: "Claim Created",
-      SCORE_GENERATED: "Score Generated",
-      OVERRIDE: "Score Override",
-      RESCORE: "Rescored",
-      FIELD_EDIT: "Field Edited",
-      STATUS_CHANGE: "Status Changed",
-      DOCUMENT_UPLOADED: "Document Uploaded",
-      APPROVE: "Approved",
-      REJECT: "Rejected",
-    };
-    return mapping[action] || action;
-  };
 
   const getActionIcon = (action: string) => {
     switch (action) {
@@ -369,8 +366,12 @@ export default function ClaimDetail() {
               disabled={markInReviewMutation.isPending}
               data-testid="button-mark-in-review"
             >
-              <Eye className="h-4 w-4" />
-              Mark In Review
+              {markInReviewMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+              {markInReviewMutation.isPending ? "Marking..." : "Mark In Review"}
             </Button>
           )}
           
@@ -381,19 +382,29 @@ export default function ClaimDetail() {
                 variant="outline"
                 className="gap-2 border-green-600 text-green-600 hover:bg-green-50 dark:hover:bg-green-950"
                 onClick={() => setShowApproveModal(true)}
+                disabled={approveMutation.isPending}
                 data-testid="button-approve"
               >
-                <ThumbsUp className="h-4 w-4" />
-                Approve
+                {approveMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ThumbsUp className="h-4 w-4" />
+                )}
+                {approveMutation.isPending ? "Processing..." : getApproveButtonText()}
               </Button>
               <Button
                 variant="outline"
                 className="gap-2 border-red-600 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
                 onClick={() => setShowRejectModal(true)}
+                disabled={rejectMutation.isPending}
                 data-testid="button-reject"
               >
-                <ThumbsDown className="h-4 w-4" />
-                Reject
+                {rejectMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ThumbsDown className="h-4 w-4" />
+                )}
+                {rejectMutation.isPending ? "Processing..." : getRejectButtonText()}
               </Button>
             </div>
           )}
@@ -427,7 +438,7 @@ export default function ClaimDetail() {
               )}
               <div className="flex-1">
                 <p className="font-semibold">
-                  Claim {claim.status === "approved" ? "Approved" : "Rejected"} by {claim.decided_by}
+                  {getDecisionSentence(claim.status, claim.decided_by)}
                 </p>
                 {claim.decided_at && (
                   <p className="text-sm text-muted-foreground">
@@ -783,7 +794,7 @@ export default function ClaimDetail() {
                             {getActionIcon(log.action_type)}
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between gap-2">
-                                <p className="font-medium text-sm">{formatActionType(log.action_type)}</p>
+                                <p className="font-medium text-sm">{getActionTypeDisplay(log.action_type)}</p>
                                 <span className="text-xs text-muted-foreground whitespace-nowrap">
                                   {format(new Date(log.timestamp), "dd MMM HH:mm")}
                                 </span>
@@ -794,12 +805,12 @@ export default function ClaimDetail() {
                                   <span className="font-medium">{getFieldLabel(log.field_changed)}:</span>{" "}
                                   {log.old_value && (
                                     <span className="line-through text-muted-foreground">
-                                      {log.field_changed === "status" ? formatStatusValue(log.old_value) : log.old_value}
+                                      {log.field_changed === "status" ? getStatusDisplay(log.old_value) : log.old_value}
                                     </span>
                                   )}
                                   {log.old_value && " → "}
                                   <span className="font-medium">
-                                    {log.field_changed === "status" ? formatStatusValue(log.new_value || "") : log.new_value}
+                                    {log.field_changed === "status" ? getStatusDisplay(log.new_value || "") : log.new_value}
                                   </span>
                                 </p>
                               )}
@@ -851,15 +862,15 @@ export default function ClaimDetail() {
                   {claim.rule_triggers?.length || 0} rule{(claim.rule_triggers?.length || 0) !== 1 ? "s" : ""} triggered
                 </p>
                 <div className="space-y-1.5">
-                  {claim.rule_triggers?.slice(0, 10).map((rule, idx) => (
+                  {claim.rule_triggers?.slice(0, 5).map((rule, idx) => (
                     <div key={idx} className="flex items-center justify-between text-sm">
                       <span className="truncate">{rule.rule_name}</span>
                       <Badge variant="outline" className="text-xs">+{rule.weight}</Badge>
                     </div>
                   ))}
-                  {(claim.rule_triggers?.length || 0) > 10 && (
+                  {(claim.rule_triggers?.length || 0) > 5 && (
                     <p className="text-xs text-muted-foreground">
-                      +{(claim.rule_triggers?.length || 0) - 10} more rules
+                      +{(claim.rule_triggers?.length || 0) - 5} more rules
                     </p>
                   )}
                 </div>
@@ -897,15 +908,15 @@ export default function ClaimDetail() {
         </div>
       </div>
 
-      <Dialog open={showApproveModal} onOpenChange={setShowApproveModal}>
-        <DialogContent className="max-w-mlgd">
+      <Dialog open={showApproveModal} onOpenChange={(open) => !approveMutation.isPending && setShowApproveModal(open)}>
+        <DialogContent className="max-w-mlgd" onInteractOutside={(e) => approveMutation.isPending && e.preventDefault()}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ThumbsUp className="h-5 w-5 text-green-600" />
-              Approve Claim
+              {getApproveModalTitle()}
             </DialogTitle>
             <DialogDescription>
-              Approve this claim with a reason and notes. This action cannot be undone.
+              Clear this claim with a reason and notes. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -938,7 +949,7 @@ export default function ClaimDetail() {
             </div>
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setShowApproveModal(false)}>
+            <Button variant="outline" onClick={() => setShowApproveModal(false)} disabled={approveMutation.isPending}>
               Cancel
             </Button>
             <Button
@@ -947,21 +958,22 @@ export default function ClaimDetail() {
               disabled={!decisionReason || !decisionNotes || approveMutation.isPending}
               data-testid="button-confirm-approve"
             >
-              {approveMutation.isPending ? "Approving..." : "Approve Claim"}
+              {approveMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              {approveMutation.isPending ? "Clearing..." : getApproveButtonText()}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showRejectModal} onOpenChange={setShowRejectModal}>
-        <DialogContent className="max-w-lg">
+      <Dialog open={showRejectModal} onOpenChange={(open) => !rejectMutation.isPending && setShowRejectModal(open)}>
+        <DialogContent className="max-w-lg" onInteractOutside={(e) => rejectMutation.isPending && e.preventDefault()}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ThumbsDown className="h-5 w-5 text-red-600" />
-              Reject Claim
+              {getRejectModalTitle()}
             </DialogTitle>
             <DialogDescription>
-              Reject this claim with a reason and notes. This action cannot be undone.
+              Escalate this claim to investigation with a reason and notes. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -994,7 +1006,7 @@ export default function ClaimDetail() {
             </div>
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setShowRejectModal(false)}>
+            <Button variant="outline" onClick={() => setShowRejectModal(false)} disabled={rejectMutation.isPending}>
               Cancel
             </Button>
             <Button
@@ -1003,7 +1015,8 @@ export default function ClaimDetail() {
               disabled={!decisionReason || !decisionNotes || rejectMutation.isPending}
               data-testid="button-confirm-reject"
             >
-              {rejectMutation.isPending ? "Rejecting..." : "Reject Claim"}
+              {rejectMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              {rejectMutation.isPending ? "Escalating..." : getRejectButtonText()}
             </Button>
           </DialogFooter>
         </DialogContent>
