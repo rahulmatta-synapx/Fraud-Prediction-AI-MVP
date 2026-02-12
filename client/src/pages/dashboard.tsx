@@ -128,7 +128,7 @@ export default function Dashboard() {
         <StatsCard
           title="Decisions Made"
           value={getDecisionsMade()}
-          description="Approved + Rejected"
+          description="Cleared + Escalated"
           icon={UserCheck}
         />
       </div>
@@ -326,7 +326,7 @@ export default function Dashboard() {
               <h3 className="font-semibold mb-1">Human-in-the-Loop</h3>
               <p className="text-sm text-muted-foreground">
                 Synapx provides AI-powered risk scores as recommendations only. 
-                After reviewing the AI analysis, analysts can approve or reject claims.
+                After reviewing the AI analysis, analysts can escalate or clear claims.
                 Claims become read-only after decisions are made for audit compliance.
               </p>
             </div>
