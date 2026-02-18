@@ -14,9 +14,61 @@ from ..services.llm_analyzer import analyze_claim_signals
 from ..services.document_extraction import extract_fields_from_document
 from ..services.blob_storage import upload_document, generate_sas_url
 from ..services.justification import generate_justification, _generate_fallback_justification
+from ..services.subscription import (
+    is_subscription_active,
+    check_claims_limit,
+    check_documents_limit,
+)
 from ..db.cosmos import get_cosmos_db
 
 router = APIRouter(prefix="/api", tags=["Claims"])
+
+# Default org_id for legacy (username/password) authentication
+# All legacy users share this org until migrated to Azure AD
+DEFAULT_ORG_ID = "org_default"
+
+def get_org_id_for_user(current_user: TokenData) -> str:
+    """Get org_id for the current user. Returns default for legacy auth."""
+    # Legacy users don't have org_id, use default
+    return getattr(current_user, 'org_id', None) or DEFAULT_ORG_ID
+
+def _get_org_and_enforce_subscription(org_id: str):
+    """
+    Enforce subscription status. Called on EVERY endpoint.
+    - Legacy users (org_default): bypass checks
+    - Active / non-expired trial: allowed
+    - Suspended / cancelled / expired trial: 403
+    Returns the org dict (or None for legacy users).
+    """
+    if org_id == DEFAULT_ORG_ID:
+        return None  # Legacy users bypass subscription checks
+    db = get_cosmos_db()
+    org = db.get_organization(org_id)
+    if not org:
+        return None  # Org not found, allow (shouldn't happen)
+    if not is_subscription_active(org):
+        sub_status = org.get('subscription_status', 'unknown')
+        if sub_status == 'trial':
+            raise HTTPException(
+                status_code=403,
+                detail="Your free trial has expired. Please upgrade to Enterprise to continue using the platform."
+            )
+        elif sub_status == 'suspended':
+            raise HTTPException(
+                status_code=403,
+                detail="Your subscription has been suspended. Please contact your administrator to restore access."
+            )
+        elif sub_status == 'cancelled':
+            raise HTTPException(
+                status_code=403,
+                detail="Your subscription has been cancelled. Please contact support to reactivate your account."
+            )
+        else:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Subscription {sub_status}. Please contact your administrator or upgrade your plan."
+            )
+    return org
 
 def normalize_value(value):
     """Normalize a value for comparison - handles numeric type differences."""
@@ -48,10 +100,12 @@ async def list_claims(
     last_24h: bool = False
 ):
     db = get_cosmos_db()
+    org_id = get_org_id_for_user(current_user)
+    _get_org_and_enforce_subscription(org_id)
     if last_24h:
-        claims = db.list_claims_last_24h()
+        claims = db.list_claims_last_24h(org_id)
     else:
-        claims = db.list_claims()
+        claims = db.list_claims(org_id)
     return claims
 
 @router.get("/claims/{claim_id}")
@@ -60,11 +114,13 @@ async def get_claim(
     current_user: TokenData = Depends(get_current_user)
 ):
     db = get_cosmos_db()
-    claim = db.get_claim(claim_id)
+    org_id = get_org_id_for_user(current_user)
+    _get_org_and_enforce_subscription(org_id)
+    claim = db.get_claim(org_id, claim_id)
     if not claim:
         raise HTTPException(status_code=404, detail="Claim not found")
     
-    audit_logs = db.get_audit_logs(claim_id)
+    audit_logs = db.get_audit_logs(org_id, claim_id)
     claim["audit_logs"] = audit_logs
     
     for doc in claim.get("documents", []):
@@ -86,12 +142,25 @@ async def create_claim(
     current_user: TokenData = Depends(get_current_user)
 ):
     db = get_cosmos_db()
+    org_id = get_org_id_for_user(current_user)
+    
+    # Subscription enforcement
+    org = _get_org_and_enforce_subscription(org_id)
+    if org:
+        claims_check = check_claims_limit(org, db)
+        if not claims_check["allowed"]:
+            raise HTTPException(
+                status_code=403,
+                detail=claims_check["message"]
+            )
     
     claim_id = generate_claim_id()
     
     claim = {
         "id": str(uuid.uuid4()),
+        "org_id": org_id,
         "claim_id": claim_id,
+        "broker_id": claim_data.broker_id or "",
         "claimant_name": claim_data.claimant_name,
         "policy_id": claim_data.policy_id,
         "policy_start_date": claim_data.policy_start_date,
@@ -149,6 +218,7 @@ async def create_claim(
                     })
                     db.save_audit_log({
                         "id": str(uuid.uuid4()),
+                        "org_id": org_id,
                         "claim_id": claim_id,
                         "user_name": current_user.full_name,
                         "action_type": "FIELD_EDIT",
@@ -160,8 +230,13 @@ async def create_claim(
     
     saved_claim = db.save_claim(claim)
     
+    # Track usage
+    if org_id != DEFAULT_ORG_ID:
+        db.increment_org_claims_count(org_id)
+    
     db.save_audit_log({
         "id": str(uuid.uuid4()),
+        "org_id": org_id,
         "claim_id": claim_id,
         "user_name": current_user.full_name,
         "action_type": "CLAIM_CREATED",
@@ -228,6 +303,7 @@ async def create_claim(
         
         db.save_audit_log({
             "id": str(uuid.uuid4()),
+            "org_id": org_id,
             "claim_id": claim_id,
             "user_name": "system",
             "action_type": "SCORE_GENERATED",
@@ -274,7 +350,9 @@ async def approve_claim(
 ):
     """Approve the claim with mandatory reason and notes."""
     db = get_cosmos_db()
-    claim = db.get_claim(claim_id)
+    org_id = get_org_id_for_user(current_user)
+    _get_org_and_enforce_subscription(org_id)
+    claim = db.get_claim(org_id, claim_id)
     if not claim:
         raise HTTPException(status_code=404, detail="Claim not found")
     
@@ -297,6 +375,7 @@ async def approve_claim(
     
     db.save_audit_log({
         "id": str(uuid.uuid4()),
+        "org_id": org_id,
         "claim_id": claim_id,
         "user_name": current_user.full_name,
         "action_type": "APPROVE",
@@ -308,7 +387,7 @@ async def approve_claim(
         "timestamp": datetime.utcnow().isoformat()
     })
     
-    audit_logs = db.get_audit_logs(claim_id)
+    audit_logs = db.get_audit_logs(org_id, claim_id)
     claim["audit_logs"] = audit_logs
     
     return claim
@@ -320,7 +399,9 @@ async def mark_in_review(
 ):
     """Mark a claim as 'in_review' - any user can do this."""
     db = get_cosmos_db()
-    claim = db.get_claim(claim_id)
+    org_id = get_org_id_for_user(current_user)
+    _get_org_and_enforce_subscription(org_id)
+    claim = db.get_claim(org_id, claim_id)
     if not claim:
         raise HTTPException(status_code=404, detail="Claim not found")
     
@@ -341,6 +422,7 @@ async def mark_in_review(
     
     db.save_audit_log({
         "id": str(uuid.uuid4()),
+        "org_id": org_id,
         "claim_id": claim_id,
         "user_name": current_user.full_name,
         "action_type": "STATUS_CHANGE",
@@ -352,7 +434,7 @@ async def mark_in_review(
         "timestamp": datetime.utcnow().isoformat()
     })
     
-    audit_logs = db.get_audit_logs(claim_id)
+    audit_logs = db.get_audit_logs(org_id, claim_id)
     claim["audit_logs"] = audit_logs
     
     return claim
@@ -365,7 +447,9 @@ async def reject_claim(
 ):
     """Reject the claim with mandatory reason and notes."""
     db = get_cosmos_db()
-    claim = db.get_claim(claim_id)
+    org_id = get_org_id_for_user(current_user)
+    _get_org_and_enforce_subscription(org_id)
+    claim = db.get_claim(org_id, claim_id)
     if not claim:
         raise HTTPException(status_code=404, detail="Claim not found")
     
@@ -388,6 +472,7 @@ async def reject_claim(
     
     db.save_audit_log({
         "id": str(uuid.uuid4()),
+        "org_id": org_id,
         "claim_id": claim_id,
         "user_name": current_user.full_name,
         "action_type": "REJECT",
@@ -399,7 +484,7 @@ async def reject_claim(
         "timestamp": datetime.utcnow().isoformat()
     })
     
-    audit_logs = db.get_audit_logs(claim_id)
+    audit_logs = db.get_audit_logs(org_id, claim_id)
     claim["audit_logs"] = audit_logs
     
     return claim
@@ -433,6 +518,8 @@ async def extract_fields(
     file: UploadFile = File(...),
     current_user: TokenData = Depends(get_current_user)
 ):
+    org_id = get_org_id_for_user(current_user)
+    _get_org_and_enforce_subscription(org_id)
     content = await file.read()
     
     extracted = await extract_fields_from_document(
@@ -450,9 +537,20 @@ async def upload_claim_document(
     current_user: TokenData = Depends(get_current_user)
 ):
     db = get_cosmos_db()
-    claim = db.get_claim(claim_id)
+    org_id = get_org_id_for_user(current_user)
+    claim = db.get_claim(org_id, claim_id)
     if not claim:
         raise HTTPException(status_code=404, detail="Claim not found")
+    
+    # Subscription enforcement - document limit
+    org = _get_org_and_enforce_subscription(org_id)
+    if org:
+        docs_check = check_documents_limit(org, claim)
+        if not docs_check["allowed"]:
+            raise HTTPException(
+                status_code=403,
+                detail=docs_check["message"]
+            )
     
     content = await file.read()
     
@@ -554,6 +652,7 @@ async def upload_claim_document(
     
     db.save_audit_log({
         "id": str(uuid.uuid4()),
+        "org_id": org_id,
         "claim_id": claim_id,
         "user_name": current_user.full_name,
         "action_type": "DOCUMENT_UPLOADED",
@@ -569,7 +668,9 @@ async def get_stats(
     current_user: TokenData = Depends(get_current_user)
 ):
     db = get_cosmos_db()
-    stats = db.get_stats()
+    org_id = get_org_id_for_user(current_user)
+    _get_org_and_enforce_subscription(org_id)
+    stats = db.get_stats(org_id)
     return StatsResponse(**stats)
 
 @router.get("/claims/{claim_id}/audit-logs")
@@ -578,5 +679,7 @@ async def get_claim_audit_logs(
     current_user: TokenData = Depends(get_current_user)
 ):
     db = get_cosmos_db()
-    logs = db.get_audit_logs(claim_id)
+    org_id = get_org_id_for_user(current_user)
+    _get_org_and_enforce_subscription(org_id)
+    logs = db.get_audit_logs(org_id, claim_id)
     return logs

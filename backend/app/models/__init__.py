@@ -18,6 +18,9 @@ from .schemas import (
     AuditLog,
     ExtractedFields,
     StatsResponse,
+    Organization,
+    UserDB,
+    UserWithOrg,
 )
 
 __all__ = [
@@ -40,4 +43,7 @@ __all__ = [
     "AuditLog",
     "ExtractedFields",
     "StatsResponse",
+    "Organization",
+    "UserDB",
+    "UserWithOrg",
 ]

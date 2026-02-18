@@ -21,6 +21,7 @@ security = HTTPBearer()
 class TokenData(BaseModel):
     username: str
     full_name: str
+    org_id: Optional[str] = None
 
 def authenticate_user(username: str, password: str) -> Optional[dict]:
     user = USERS.get(username.lower())
@@ -35,17 +36,46 @@ def create_access_token(data: dict) -> str:
     return jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 def verify_token(token: str) -> TokenData:
+    """Try legacy HS256 token first, then Azure AD RS256 token."""
+    # 1. Try legacy HS256 token
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         username: str = payload.get("username")
         full_name: str = payload.get("full_name")
-        if username is None:
+        if username is not None:
+            return TokenData(username=username, full_name=full_name, org_id=None)
+    except JWTError:
+        pass
+
+    # 2. Try Azure AD RS256 token
+    try:
+        from .azure_ad_auth import validate_azure_ad_token, TokenValidationError
+        from ..db.cosmos import get_cosmos_db
+
+        claims = validate_azure_ad_token(token)
+        azure_ad_object_id = claims.get("oid")
+        if not azure_ad_object_id:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token"
+                detail="Invalid token: missing oid claim"
             )
-        return TokenData(username=username, full_name=full_name)
-    except JWTError:
+
+        db = get_cosmos_db()
+        user = db.get_user_by_azure_ad_id(azure_ad_object_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found. Please login again."
+            )
+
+        return TokenData(
+            username=user.get("email", claims.get("preferred_username", "")),
+            full_name=user.get("full_name", claims.get("name", "")),
+            org_id=user.get("org_id"),
+        )
+    except HTTPException:
+        raise
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token"

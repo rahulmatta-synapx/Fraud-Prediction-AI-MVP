@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 # Load environment variables if present
 load_dotenv()
 
-from .routers import auth, claims
+from .routers import auth, claims, organizations
 
 app = FastAPI(
     title="Synapx AI API",
@@ -30,6 +30,7 @@ app.add_middleware(
 # Include routers for different modules
 app.include_router(auth.router)
 app.include_router(claims.router)
+app.include_router(organizations.router)
 
 @app.get("/")
 async def root():

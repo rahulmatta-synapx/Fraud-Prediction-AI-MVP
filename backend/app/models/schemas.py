@@ -82,6 +82,7 @@ class DocumentInfo(BaseModel):
 class Claim(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     claim_id: str
+    broker_id: str
     claimant_name: str
     policy_id: str
     policy_start_date: Optional[str] = None
@@ -124,6 +125,7 @@ class Claim(BaseModel):
 
 class ClaimCreate(BaseModel):
     claimant_name: str
+    broker_id: Optional[str] = ""
     policy_id: str
     policy_start_date: Optional[str] = None
     policyholder_address: Optional[str] = None
@@ -149,6 +151,7 @@ class ClaimCreate(BaseModel):
 
 class ClaimFieldsUpdate(BaseModel):
     claimant_name: Optional[str] = None
+    broker_id: Optional[str] = None
     policy_id: Optional[str] = None
     policy_start_date: Optional[str] = None
     policyholder_address: Optional[str] = None
@@ -231,3 +234,42 @@ class StatsResponse(BaseModel):
     claims_last_24h: Optional[int] = None
     average_score: Optional[float] = None
     total_value_gbp: Optional[float] = None
+
+
+# ============================================================================
+# MULTI-TENANT MODELS
+# ============================================================================
+
+SubscriptionStatus = Literal["active", "trial", "suspended", "cancelled"]
+SubscriptionTier = Literal["free", "enterprise"]
+
+class Organization(BaseModel):
+    org_id: str
+    org_name: str
+    azure_tenant_id: str
+    subscription_status: SubscriptionStatus = "trial"
+    subscription_tier: SubscriptionTier = "free"
+    claims_count: int = 0
+    users_count: int = 0
+    trial_started_at: Optional[str] = None
+    trial_days: int = 14
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+class UserDB(BaseModel):
+    user_id: str
+    org_id: str
+    azure_ad_object_id: str
+    email: Optional[str] = None
+    full_name: str = ""
+    role: str = "user"
+    created_at: Optional[str] = None
+    last_login: Optional[str] = None
+
+class UserWithOrg(BaseModel):
+    user_id: str
+    email: Optional[str] = None
+    full_name: str = ""
+    role: str = "user"
+    org_id: str
+    organization: Organization
