@@ -234,9 +234,8 @@ export default function ClaimDetail() {
     onSuccess: async () => {
       // Invalidate and wait for refetch to complete
       await queryClient.invalidateQueries({ queryKey: ["/api/claims", id] });
-      toast({ title: getApproveSuccessMessage() });
       await queryClient.invalidateQueries({ queryKey: ["/api/claims"] });
-
+      toast({ title: getApproveSuccessMessage() });
     },
     onSettled: () => {
       // Close modal after everything completes (success or error)
@@ -256,9 +255,8 @@ export default function ClaimDetail() {
     onSuccess: async () => {
       // Invalidate and wait for refetch to complete
       await queryClient.invalidateQueries({ queryKey: ["/api/claims", id] });
-      toast({ title: getRejectSuccessMessage() });
       await queryClient.invalidateQueries({ queryKey: ["/api/claims"] });
-      
+      toast({ title: getRejectSuccessMessage() });
     },
     onSettled: () => {
       // Close modal after everything completes (success or error)

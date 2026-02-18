@@ -1,5 +1,6 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 import { getAuthToken } from "./auth";
+import { getAzureAuthToken } from "./azureAuth";
 
 /**
  * FIX: Use the Environment Variable we set up in the YAML and Azure Portal.
@@ -10,9 +11,15 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 // Session expiry handler - will be set by the app
 let sessionExpiredHandler: (() => void) | null = null;
+// Subscription blocked handler - will be set by the app
+let subscriptionBlockedHandler: ((message: string) => void) | null = null;
 
 export function setSessionExpiredHandler(handler: () => void) {
   sessionExpiredHandler = handler;
+}
+
+export function setSubscriptionBlockedHandler(handler: (message: string) => void) {
+  subscriptionBlockedHandler = handler;
 }
 
 async function throwIfResNotOk(res: Response) {
@@ -35,12 +42,22 @@ async function throwIfResNotOk(res: Response) {
     } else {
       errorMessage = await res.text();
     }
+
+    // Handle 403 Subscription blocked
+    if (res.status === 403 && subscriptionBlockedHandler) {
+      subscriptionBlockedHandler(errorMessage);
+    }
     
     throw new Error(`${res.status}: ${errorMessage}`);
   }
 }
 
 function getAuthHeaders(): HeadersInit {
+  // Prefer Azure AD token, fallback to legacy token
+  const azureToken = getAzureAuthToken();
+  if (azureToken) {
+    return { Authorization: `Bearer ${azureToken}` };
+  }
   const token = getAuthToken();
   if (token) {
     return { Authorization: `Bearer ${token}` };

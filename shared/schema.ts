@@ -33,6 +33,7 @@ export const claimantHistorySchema = z.object({
 export const claims = pgTable("claims", {
   id: serial("id").primaryKey(),
   claimRef: varchar("claim_ref", { length: 20 }).notNull().unique(),
+  brokerId: varchar("broker_id", { length: 50 }).notNull(), // Broker-level tracking
   policyId: varchar("policy_id", { length: 50 }).notNull(),
   claimAmount: decimal("claim_amount", { precision: 12, scale: 2 }).notNull(),
   accidentDate: timestamp("accident_date").notNull(),
@@ -50,6 +51,28 @@ export const claims = pgTable("claims", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   scoredAt: timestamp("scored_at"),
+});
+
+// Broker statistics table - tracks historical and recent high-value policy distribution
+export const brokerStatistics = pgTable("broker_statistics", {
+  id: serial("id").primaryKey(),
+  brokerId: varchar("broker_id", { length: 50 }).notNull().unique(),
+  historicalWindowStart: timestamp("historical_window_start").notNull(),
+  historicalWindowEnd: timestamp("historical_window_end").notNull(),
+  recentWindowStart: timestamp("recent_window_start").notNull(),
+  recentWindowEnd: timestamp("recent_window_end").notNull(),
+  highValueThreshold: decimal("high_value_threshold", { precision: 12, scale: 2 }).notNull(),
+  historicalHighValueCount: integer("historical_high_value_count").notNull(),
+  historicalTotalCount: integer("historical_total_count").notNull(),
+  recentHighValueCount: integer("recent_high_value_count").notNull(),
+  recentTotalCount: integer("recent_total_count").notNull(),
+  deviationPercent: decimal("deviation_percent", { precision: 5, scale: 2 }).notNull(),
+  severity: text("severity"), // low, medium, high
+  alertGeneratedAt: timestamp("alert_generated_at"),
+  suppressed: integer("suppressed").default(0), // 1 if suppressed for edge cases
+  notes: text("notes"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 // LLM Signals - neutral observations from AI analysis
@@ -108,6 +131,7 @@ export const insertClaimSchema = createInsertSchema(claims).omit({
   updatedAt: true,
   scoredAt: true,
 }).extend({
+  brokerId: z.string(),
   vehicleDetails: vehicleDetailsSchema,
   claimantHistory: claimantHistorySchema,
 });
@@ -169,6 +193,8 @@ export type AuditLog = typeof auditLogs.$inferSelect;
 export type OverrideInput = z.infer<typeof overrideInputSchema>;
 export type ClaimStatus = z.infer<typeof claimStatusEnum>;
 export type RiskBand = z.infer<typeof riskBandEnum>;
+
+export type BrokerStatistics = typeof brokerStatistics.$inferSelect;
 
 // Claim with full details for API responses
 export type ClaimWithDetails = Claim & {

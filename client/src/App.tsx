@@ -1,5 +1,5 @@
 import { Switch, Route } from "wouter";
-import { queryClient, setSessionExpiredHandler } from "./lib/queryClient";
+import { queryClient, setSessionExpiredHandler, setSubscriptionBlockedHandler } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,11 +7,14 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { AuthProvider, useAuth } from "@/lib/auth";
+import { MsalProvider } from "@azure/msal-react";
+import { msalInstance } from "@/lib/msalConfig";
+import { AzureAuthProvider, useAzureAuth } from "@/lib/azureAuth";
 import { Button } from "@/components/ui/button";
-import { LogOut, User } from "lucide-react";
+import { LogOut, User, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect } from "react";
+import { SubscriptionBanner } from "@/components/subscription-banner";
 
 import Dashboard from "@/pages/dashboard";
 import ClaimsList from "@/pages/claims-list";
@@ -20,6 +23,7 @@ import SubmitClaim from "@/pages/submit-claim";
 import Stats from "@/pages/stats";
 import HelpPage from "@/pages/help";
 import LoginPage from "@/pages/login";
+import MarketplaceLanding from "@/pages/marketplace-landing";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -37,7 +41,7 @@ function Router() {
 }
 
 function AuthenticatedApp() {
-  const { user, logout, isAuthenticated, isLoading } = useAuth();
+  const { user, logout, isAuthenticated, isLoading } = useAzureAuth();
   const { toast } = useToast();
 
   // Set up session expired handler
@@ -48,10 +52,17 @@ function AuthenticatedApp() {
         title: "Session Expired",
         description: "Your session has expired. Please login again.",
       });
-      // Logout after a short delay so user can see the message
       setTimeout(() => {
         logout();
       }, 1500);
+    });
+    setSubscriptionBlockedHandler((message: string) => {
+      toast({
+        variant: "destructive",
+        title: "Subscription Required",
+        description: message,
+        duration: 8000,
+      });
     });
   }, [logout, toast]);
 
@@ -77,9 +88,25 @@ function AuthenticatedApp() {
       <div className="flex h-screen w-full">
         <AppSidebar />
         <div className="flex flex-col flex-1 overflow-hidden">
+          <SubscriptionBanner />
           <header className="flex items-center justify-between px-4 py-2 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
             <div className="flex items-center gap-4">
+              {user?.org_name && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">
+                  <Building2 className="h-3 w-3" />
+                  <span>{user.org_name}</span>
+                  {user.subscription_tier && (
+                    <span className={`ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase ${
+                      user.subscription_tier === 'enterprise' 
+                        ? 'bg-emerald-500/10 text-emerald-600' 
+                        : 'bg-amber-500/10 text-amber-600'
+                    }`}>
+                      {user.subscription_tier === 'enterprise' ? 'Enterprise' : 'Free Tier'}
+                    </span>
+                  )}
+                </div>
+              )}
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <User className="h-4 w-4" />
                 <span>{user?.full_name}</span>
@@ -111,9 +138,17 @@ function App() {
     <ThemeProvider defaultTheme="light" storageKey="synapx-theme">
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <AuthProvider>
-            <AuthenticatedApp />
-          </AuthProvider>
+          <MsalProvider instance={msalInstance}>
+            <AzureAuthProvider>
+              {/* Marketplace landing page must be accessible without auth */}
+              <Switch>
+                <Route path="/marketplace/landing" component={MarketplaceLanding} />
+                <Route>
+                  <AuthenticatedApp />
+                </Route>
+              </Switch>
+            </AzureAuthProvider>
+          </MsalProvider>
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
