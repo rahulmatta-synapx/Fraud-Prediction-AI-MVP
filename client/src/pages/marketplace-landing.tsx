@@ -166,8 +166,8 @@ export default function MarketplaceLanding() {
       <div className="border-b border-slate-200/60 dark:border-slate-800 backdrop-blur-sm bg-white/70 dark:bg-slate-900/70 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <Shield className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
-            <span className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">Synapx AI</span>
+            <Shield className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Fraud Prediction AI</h1>
           </div>
           <span className="text-xs font-medium text-slate-400 dark:text-slate-500 hidden sm:block">
             Azure Marketplace
