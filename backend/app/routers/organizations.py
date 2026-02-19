@@ -394,9 +394,11 @@ async def marketplace_landing(body: MarketplaceLandingRequest):
     sub_name = sub_details.get("subscriptionName", "")
     sub_status = sub_details.get("saasSubscriptionStatus", "")
     
-    # Customer/Purchaser emails for display
+    # Customer/Purchaser details for enterprise billing verification
     customer_email = beneficiary.get("emailId", "") or purchaser.get("emailId", "")
+    customer_name = beneficiary.get("displayName", "") or beneficiary.get("emailId", "")
     purchaser_email = purchaser.get("emailId", "")
+    azure_tenant_id = tenant_id
 
     return {
         "status": "success",
@@ -415,7 +417,9 @@ async def marketplace_landing(body: MarketplaceLandingRequest):
             "offer_id": offer_id,
             "plan_id": plan_id,
             "customer_email": customer_email,
+            "customer_name": customer_name,
             "purchaser_email": purchaser_email if purchaser_email != customer_email else "",
+            "azure_tenant_id": azure_tenant_id,
         },
     }
 

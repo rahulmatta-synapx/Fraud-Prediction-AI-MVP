@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { Shield, CheckCircle2, XCircle, Loader2, Building2, CreditCard, Mail, ArrowRight } from "lucide-react";
+import { Shield, CheckCircle2, XCircle, Loader2, FileText, Mail, User, Key, Package, ArrowRight } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
@@ -21,7 +21,9 @@ interface SubscriptionResult {
   offer_id: string;
   plan_id: string;
   customer_email: string;
+  customer_name: string;
   purchaser_email: string;
+  azure_tenant_id: string;
 }
 
 interface ActivationResponse {
@@ -108,117 +110,198 @@ export default function MarketplaceLanding() {
 
         {state === "success" && response && (
           <div className="space-y-8 animate-in fade-in duration-500">
-            {/* Success Hero */}
-            <div className="text-center py-12">
-              <div className="inline-flex items-center justify-center w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 rounded-full mb-6">
-                <CheckCircle2 className="h-12 w-12 text-emerald-600 dark:text-emerald-400" />
+            {/* Success Header */}
+            <div className="text-center py-8">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-full mb-4">
+                <CheckCircle2 className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
               </div>
-              <h2 className="text-4xl font-bold text-slate-900 dark:text-white mb-3 tracking-tight">
-                Welcome to Synapx AI
+              <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-2 tracking-tight">
+                Subscription Activated
               </h2>
-              <p className="text-xl text-slate-600 dark:text-slate-400">
-                Your subscription has been activated successfully
+              <p className="text-lg text-slate-600 dark:text-slate-400">
+                Your Azure Marketplace purchase is complete
               </p>
             </div>
 
-            {/* Details Cards */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Organization Profile Card */}
-              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-md transition-shadow">
-                <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700">
+            {/* Subscription Details Receipt */}
+            <div className="max-w-3xl mx-auto">
+              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                {/* Header */}
+                <div className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-700 px-8 py-6 border-b border-slate-200 dark:border-slate-600">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg">
-                      <Building2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                    <div className="p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm">
+                      <FileText className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
                     </div>
-                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                      Organization Profile
-                    </h3>
-                  </div>
-                </div>
-                <div className="p-6 space-y-5">
-                  <div>
-                    <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 block">
-                      Organization Name
-                    </label>
-                    <p className="text-lg font-semibold text-slate-900 dark:text-white">
-                      {response.organization.org_name}
-                    </p>
-                  </div>
-                  
-                  {response.organization.email && (
                     <div>
-                      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 block flex items-center gap-1.5">
-                        <Mail className="h-3.5 w-3.5" />
-                        Email Address
-                      </label>
-                      <p className="text-base text-slate-700 dark:text-slate-300">
-                        {response.organization.email}
+                      <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                        Subscription Details
+                      </h3>
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        Microsoft Azure Marketplace
                       </p>
                     </div>
-                  )}
+                  </div>
                 </div>
-              </div>
 
-              {/* Subscription Details Card */}
-              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-md transition-shadow">
-                <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
-                      <CreditCard className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                {/* Details Grid */}
+                <div className="p-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                    {/* Customer Email */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Mail className="h-4 w-4 text-slate-400" />
+                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                          Customer Email
+                        </label>
+                      </div>
+                      <p className="text-base font-medium text-slate-900 dark:text-white">
+                        {response.subscription.customer_email || response.organization.email}
+                      </p>
                     </div>
-                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                      Subscription Details
-                    </h3>
+
+                    {/* Customer Name */}
+                    {response.subscription.customer_name && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <User className="h-4 w-4 text-slate-400" />
+                          <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                            Customer Name
+                          </label>
+                        </div>
+                        <p className="text-base font-medium text-slate-900 dark:text-white">
+                          {response.subscription.customer_name}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Subscription ID */}
+                    <div className="md:col-span-2">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Key className="h-4 w-4 text-slate-400" />
+                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                          Subscription ID
+                        </label>
+                      </div>
+                      <p className="text-sm font-mono text-slate-700 dark:text-slate-300 break-all bg-slate-50 dark:bg-slate-900/50 px-3 py-2 rounded-lg">
+                        {response.subscription.id}
+                      </p>
+                    </div>
+
+                    {/* Subscription Name */}
+                    {response.subscription.name && (
+                      <div className="md:col-span-2">
+                        <div className="flex items-center gap-2 mb-2">
+                          <FileText className="h-4 w-4 text-slate-400" />
+                          <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                            Subscription Name
+                          </label>
+                        </div>
+                        <p className="text-base font-medium text-slate-900 dark:text-white">
+                          {response.subscription.name}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Status */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                          Status
+                        </label>
+                      </div>
+                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-bold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300">
+                        {response.organization.subscription_status}
+                      </span>
+                    </div>
+
+                    {/* Marketplace Status */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                          Marketplace Status
+                        </label>
+                      </div>
+                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
+                        {response.subscription.status}
+                      </span>
+                    </div>
+
+                    {/* Offer Name */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Package className="h-4 w-4 text-slate-400" />
+                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                          Offer
+                        </label>
+                      </div>
+                      <p className="text-base font-medium text-slate-900 dark:text-white">
+                        {response.subscription.offer_id}
+                      </p>
+                    </div>
+
+                    {/* Plan */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                          Plan
+                        </label>
+                      </div>
+                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-bold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 uppercase">
+                        {response.subscription.plan_id}
+                      </span>
+                    </div>
+
+                    {/* Purchaser Email */}
+                    {response.subscription.purchaser_email && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <Mail className="h-4 w-4 text-slate-400" />
+                          <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                            Purchaser Email
+                          </label>
+                        </div>
+                        <p className="text-base font-medium text-slate-900 dark:text-white">
+                          {response.subscription.purchaser_email}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Azure Tenant ID */}
+                    <div className={response.subscription.purchaser_email ? "" : "md:col-span-2"}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Key className="h-4 w-4 text-slate-400" />
+                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                          Azure Tenant ID
+                        </label>
+                      </div>
+                      <p className="text-sm font-mono text-slate-700 dark:text-slate-300 break-all bg-slate-50 dark:bg-slate-900/50 px-3 py-2 rounded-lg">
+                        {response.subscription.azure_tenant_id}
+                      </p>
+                    </div>
                   </div>
                 </div>
-                <div className="p-6 space-y-5">
-                  <div>
-                    <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 block">
-                      Subscription Tier
-                    </label>
-                    <span className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-bold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 uppercase tracking-wide">
-                      {response.organization.subscription_tier}
-                    </span>
-                  </div>
-                  
-                  <div>
-                    <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 block">
-                      Status
-                    </label>
-                    <span className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-bold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 capitalize">
-                      {response.organization.subscription_status}
-                    </span>
-                  </div>
-                  
-                  <div>
-                    <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 block">
-                      Marketplace Plan
-                    </label>
-                    <p className="text-base font-medium text-slate-700 dark:text-slate-300">
-                      {response.subscription.plan_id}
-                    </p>
-                  </div>
+
+                {/* Footer Note */}
+                <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-4 border-t border-slate-200 dark:border-slate-700">
+                  <p className="text-sm text-slate-600 dark:text-slate-400 text-center">
+                    Save these details for your records and billing verification
+                  </p>
                 </div>
               </div>
             </div>
 
             {/* Call to Action */}
-            <div className="mt-12 text-center">
-              <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-800/50 rounded-2xl p-10 border border-slate-200 dark:border-slate-700">
-                <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-3">
-                  Ready to Get Started?
-                </h3>
-                <p className="text-slate-600 dark:text-slate-400 mb-8 max-w-2xl mx-auto text-base">
-                  Sign in with your Microsoft account to access your dashboard and start detecting fraud with advanced AI-powered analytics.
-                </p>
-                <button
-                  onClick={() => navigate("/")}
-                  className="inline-flex items-center gap-3 px-8 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-xl hover:scale-105 active:scale-100"
-                >
-                  Continue to Dashboard
-                  <ArrowRight className="h-5 w-5" />
-                </button>
-              </div>
+            <div className="text-center pt-6">
+              <button
+                onClick={() => navigate("/")}
+                className="inline-flex items-center gap-3 px-8 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-xl hover:scale-105 active:scale-100"
+              >
+                Continue to Dashboard
+                <ArrowRight className="h-5 w-5" />
+              </button>
+              <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+                Sign in with your Microsoft account to get started
+              </p>
             </div>
           </div>
         )}
