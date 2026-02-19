@@ -8,7 +8,7 @@ export default function PrivacyPolicy() {
         <div className="flex items-center gap-3 mb-8">
           <Shield className="h-10 w-10 text-emerald-600" />
           <div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Privacy Policy</h1>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Fraud Prediction AI Privacy Policy</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
               Last updated: February 19, 2026
             </p>
@@ -22,7 +22,7 @@ export default function PrivacyPolicy() {
               1. Introduction
             </h2>
             <p className="text-slate-700 dark:text-slate-300 leading-relaxed">
-              Synapx AI ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy
+              Fraud Prediction AI by Synapx is committed to protecting your privacy. This Privacy Policy
               explains how we collect, use, disclose, and safeguard your information when you use our Fraud
               Prediction AI platform (the "Service"). By accessing or using the Service, you agree to this
               Privacy Policy.
@@ -99,8 +99,8 @@ export default function PrivacyPolicy() {
               We retain your information for as long as necessary to provide the Service and comply with legal
               obligations. Claims data is retained according to insurance industry standards and regulatory
               requirements. You may request deletion of your data by contacting us at{" "}
-              <a href="mailto:privacy@synapx.ai" className="text-emerald-600 hover:text-emerald-700 underline">
-                privacy@synapx.ai
+              <a href="mailto:privacy@synapx.com" className="text-emerald-600 hover:text-emerald-700 underline">
+                privacy@synapx.com
               </a>.
             </p>
           </section>
@@ -139,8 +139,8 @@ export default function PrivacyPolicy() {
             </ul>
             <p className="text-slate-700 dark:text-slate-300 leading-relaxed mt-4">
               To exercise these rights, contact us at{" "}
-              <a href="mailto:privacy@synapx.ai" className="text-emerald-600 hover:text-emerald-700 underline">
-                privacy@synapx.ai
+              <a href="mailto:privacy@synapx.com" className="text-emerald-600 hover:text-emerald-700 underline">
+                privacy@synapx.com
               </a>.
             </p>
           </section>
@@ -202,36 +202,23 @@ export default function PrivacyPolicy() {
             <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-700 rounded-lg">
               <p className="text-slate-700 dark:text-slate-300">
                 <strong>Email:</strong>{" "}
-                <a href="mailto:privacy@synapx.ai" className="text-emerald-600 hover:text-emerald-700 underline">
-                  privacy@synapx.ai
+                <a href="mailto:privacy@synapx.com" className="text-emerald-600 hover:text-emerald-700 underline">
+                  privacy@synapx.com
                 </a>
               </p>
               <p className="text-slate-700 dark:text-slate-300 mt-2">
                 <strong>Support:</strong>{" "}
-                <a href="mailto:support@synapx.ai" className="text-emerald-600 hover:text-emerald-700 underline">
-                  support@synapx.ai
+                <a href="mailto:support@synapx.com" className="text-emerald-600 hover:text-emerald-700 underline">
+                  support@synapx.com
                 </a>
               </p>
             </div>
           </section>
 
-          {/* Data Protection Officer */}
-          <section className="mb-8">
-            <h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-4">
-              13. Data Protection Officer
-            </h2>
-            <p className="text-slate-700 dark:text-slate-300 leading-relaxed">
-              For GDPR-related inquiries, you may contact our Data Protection Officer at{" "}
-              <a href="mailto:dpo@synapx.ai" className="text-emerald-600 hover:text-emerald-700 underline">
-                dpo@synapx.ai
-              </a>.
-            </p>
-          </section>
-
           {/* Supervisory Authority */}
           <section>
             <h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-4">
-              14. Supervisory Authority
+              13. Supervisory Authority
             </h2>
             <p className="text-slate-700 dark:text-slate-300 leading-relaxed">
               If you are located in the EEA or UK, you have the right to lodge a complaint with your local
