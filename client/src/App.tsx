@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient, setSessionExpiredHandler, setSubscriptionBlockedHandler } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -44,6 +44,7 @@ function Router() {
 function AuthenticatedApp() {
   const { user, logout, isAuthenticated, isLoading } = useAzureAuth();
   const { toast } = useToast();
+  const [location, navigate] = useLocation();
 
   // Set up session expired handler
   useEffect(() => {
@@ -66,6 +67,13 @@ function AuthenticatedApp() {
       });
     });
   }, [logout, toast]);
+
+  // If authenticated but still on /login, redirect to dashboard
+  useEffect(() => {
+    if (isAuthenticated && location === "/login") {
+      navigate("/", { replace: true });
+    }
+  }, [isAuthenticated, location, navigate]);
 
   if (isLoading) {
     return (
