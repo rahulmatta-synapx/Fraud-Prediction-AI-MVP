@@ -396,7 +396,7 @@ async def marketplace_landing(body: MarketplaceLandingRequest):
     
     # Customer/Purchaser details for enterprise billing verification
     customer_email = beneficiary.get("emailId", "") or purchaser.get("emailId", "")
-    customer_name = beneficiary.get("displayName", "") or beneficiary.get("emailId", "")
+    customer_name = beneficiary.get("displayName", "")
     purchaser_email = purchaser.get("emailId", "")
     azure_tenant_id = tenant_id
 
