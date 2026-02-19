@@ -5,13 +5,13 @@ Includes:
  - Organization CRUD
  - Subscription management
  - Azure Marketplace Landing Page (SaaS Fulfillment)
- - Azure Marketplace Webhook handler (with idempotency)
+ - Azure Marketplace Webhook handler (with persistent idempotency)
 """
 
 import logging
 from fastapi import APIRouter, HTTPException, Header, Request, status
 from pydantic import BaseModel
-from typing import Optional, Set
+from typing import Optional
 from ..services.azure_ad_auth import (
     validate_azure_ad_token,
     TokenValidationError,
@@ -38,12 +38,6 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/organizations", tags=["Organizations"])
-
-# ---------------------------------------------------------------------------
-# Webhook idempotency — stores processed activityIds in-memory.
-# In a multi-instance deployment, replace with a Cosmos container / Redis set.
-# ---------------------------------------------------------------------------
-_processed_webhook_ids: Set[str] = set()
 
 
 class OrganizationUpdate(BaseModel):
@@ -133,14 +127,24 @@ async def update_my_organization(
 
 
 @router.post("/provision", status_code=status.HTTP_201_CREATED)
-async def manual_provision_organization(request: ManualProvisionRequest):
-    """Manually provision an organization (admin use)."""
+async def manual_provision_organization(
+    request: ManualProvisionRequest,
+    authorization: str = Header(None)
+):
+    """
+    Manually provision an organization (admin use).
+    Requires authentication.
+    """
+    # Verify user is authenticated (admin check can be added here)
+    _get_org_from_token(authorization)
+    
     db = get_cosmos_db()
 
     existing = db.get_organization(request.org_id)
     if existing:
         raise HTTPException(status_code=409, detail=f"Organization {request.org_id} already exists")
 
+    now = datetime.utcnow().isoformat()
     org = {
         "id": request.org_id,
         "org_id": request.org_id,
@@ -150,8 +154,8 @@ async def manual_provision_organization(request: ManualProvisionRequest):
         "subscription_tier": request.subscription_tier,
         "claims_count": 0,
         "users_count": 0,
-        "created_at": datetime.utcnow().isoformat(),
-        "updated_at": datetime.utcnow().isoformat(),
+        "created_at": now,
+        "updated_at": now,
     }
 
     db.create_organization(org)
@@ -329,6 +333,7 @@ async def marketplace_landing(body: MarketplaceLandingRequest):
 
     # --- Step 2: Provision or upgrade organization ---
     org = db.get_organization_by_tenant_id(tenant_id)
+    now = datetime.utcnow().isoformat()
 
     if org:
         # Existing org — upgrade to paid tier
@@ -337,8 +342,8 @@ async def marketplace_landing(body: MarketplaceLandingRequest):
         org["marketplace_subscription_id"] = marketplace_sub_id
         org["marketplace_plan_id"] = plan_id
         org["marketplace_offer_id"] = offer_id
-        org["marketplace_activated_at"] = datetime.utcnow().isoformat()
-        org["updated_at"] = datetime.utcnow().isoformat()
+        org["marketplace_activated_at"] = now
+        org["updated_at"] = now
         db.update_organization_item(org)
         logger.info(
             f"Marketplace landing: upgraded existing org {org['org_id']} → {tier}"
@@ -363,11 +368,11 @@ async def marketplace_landing(body: MarketplaceLandingRequest):
             "marketplace_subscription_id": marketplace_sub_id,
             "marketplace_plan_id": plan_id,
             "marketplace_offer_id": offer_id,
-            "marketplace_activated_at": datetime.utcnow().isoformat(),
+            "marketplace_activated_at": now,
             "claims_count": 0,
             "users_count": 0,
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
+            "created_at": now,
+            "updated_at": now,
         }
         db.create_organization(org)
         logger.info(
@@ -389,15 +394,9 @@ async def marketplace_landing(body: MarketplaceLandingRequest):
     sub_name = sub_details.get("subscriptionName", "")
     sub_status = sub_details.get("saasSubscriptionStatus", "")
     
-    # Customer details (beneficiary = who gets access)
-    customer_email = beneficiary.get("emailId", "")
-    customer_obj_id = beneficiary.get("objectId", "")
-    customer_tenant = beneficiary.get("tenantId", tenant_id)
-    
-    # Purchaser details (who made the purchase - can differ from beneficiary)
+    # Customer/Purchaser emails for display
+    customer_email = beneficiary.get("emailId", "") or purchaser.get("emailId", "")
     purchaser_email = purchaser.get("emailId", "")
-    purchaser_obj_id = purchaser.get("objectId", "")
-    purchaser_tenant = purchaser.get("tenantId", "")
 
     return {
         "status": "success",
@@ -407,6 +406,7 @@ async def marketplace_landing(body: MarketplaceLandingRequest):
             "org_name": org.get("org_name"),
             "subscription_tier": org["subscription_tier"],
             "subscription_status": org["subscription_status"],
+            "email": customer_email,
         },
         "subscription": {
             "id": marketplace_sub_id,
@@ -415,11 +415,7 @@ async def marketplace_landing(body: MarketplaceLandingRequest):
             "offer_id": offer_id,
             "plan_id": plan_id,
             "customer_email": customer_email,
-            "customer_object_id": customer_obj_id,
-            "customer_tenant_id": customer_tenant,
-            "purchaser_email": purchaser_email,
-            "purchaser_object_id": purchaser_obj_id,
-            "purchaser_tenant_id": purchaser_tenant,
+            "purchaser_email": purchaser_email if purchaser_email != customer_email else "",
         },
     }
 
@@ -444,9 +440,13 @@ class MarketplaceWebhookPayload(BaseModel):
 
 
 @router.post("/marketplace/webhook")
-async def marketplace_webhook(payload: MarketplaceWebhookPayload):
+async def marketplace_webhook(
+    payload: MarketplaceWebhookPayload,
+    request: Request,
+    authorization: str = Header(None)
+):
     """
-    Azure Marketplace webhook handler.
+    Azure Marketplace webhook handler with authentication.
 
     Webhook events:
       - ChangePlan:      Update tier → PATCH operation with Success
@@ -456,6 +456,23 @@ async def marketplace_webhook(payload: MarketplaceWebhookPayload):
       - Unsubscribe:     Mark org cancelled
       - Reinstate:       Reactivate org → PATCH operation with Success
     """
+    # --- Validate Azure AD token from Microsoft webhook ---
+    if not authorization:
+        logger.warning("[Marketplace Webhook] No authorization header")
+        raise HTTPException(status_code=401, detail="Authorization required")
+    
+    try:
+        parts = authorization.split()
+        if len(parts) != 2 or parts[0].lower() != "bearer":
+            raise HTTPException(status_code=401, detail="Invalid authorization header")
+        
+        # Validate the JWT token from Microsoft
+        token_claims = validate_azure_ad_token(parts[1])
+        logger.info(f"[Marketplace Webhook] Authenticated: {token_claims.get('appid', 'unknown')}")
+    except TokenValidationError as e:
+        logger.error(f"[Marketplace Webhook] Token validation failed: {e}")
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
     db = get_cosmos_db()
     action = (payload.action or "").lower()
     subscription_id = payload.subscriptionId
@@ -467,12 +484,25 @@ async def marketplace_webhook(payload: MarketplaceWebhookPayload):
         f"activity={activity_id} plan={payload.planId}"
     )
 
-    # --- Idempotency check ---
-    if activity_id and activity_id in _processed_webhook_ids:
-        logger.info(
-            f"[Marketplace Webhook] Duplicate activityId={activity_id}, skipping"
-        )
-        return {"status": "duplicate", "action": action, "activityId": activity_id}
+    # --- Persistent idempotency check via Cosmos DB ---
+    if activity_id:
+        try:
+            # Check if this activityId has already been processed
+            query = "SELECT * FROM c WHERE c.type = 'webhook_activity' AND c.activity_id = @activity_id"
+            params = [{"name": "@activity_id", "value": activity_id}]
+            existing = list(db.organizations_container.query_items(
+                query=query,
+                parameters=params,
+                enable_cross_partition_query=True,
+            ))
+            
+            if existing:
+                logger.info(
+                    f"[Marketplace Webhook] Duplicate activityId={activity_id}, skipping"
+                )
+                return {"status": "duplicate", "action": action, "activityId": activity_id}
+        except Exception as e:
+            logger.error(f"[Marketplace Webhook] Idempotency check failed: {e}")
 
     # --- Find org by marketplace subscription ID ---
     org = None
@@ -498,6 +528,7 @@ async def marketplace_webhook(payload: MarketplaceWebhookPayload):
 
     # --- Handle each action ---
     needs_patch = False  # whether we need to PATCH the operation back to MS
+    now = datetime.utcnow().isoformat()
 
     if action == "changeplan":
         new_tier = map_plan_to_tier(payload.planId or "")
@@ -505,36 +536,36 @@ async def marketplace_webhook(payload: MarketplaceWebhookPayload):
         org["marketplace_plan_id"] = payload.planId
         if new_tier == "enterprise":
             org["subscription_status"] = "active"
-        org["updated_at"] = datetime.utcnow().isoformat()
+        org["updated_at"] = now
         db.update_organization_item(org)
         needs_patch = True
         logger.info(f"[Webhook] ChangePlan: {org['org_id']} → {new_tier}")
 
     elif action == "changequantity":
         org["marketplace_quantity"] = payload.quantity
-        org["updated_at"] = datetime.utcnow().isoformat()
+        org["updated_at"] = now
         db.update_organization_item(org)
         needs_patch = True
         logger.info(f"[Webhook] ChangeQuantity: {org['org_id']} → {payload.quantity}")
 
     elif action == "suspend":
         org["subscription_status"] = "suspended"
-        org["suspended_at"] = datetime.utcnow().isoformat()
-        org["updated_at"] = datetime.utcnow().isoformat()
+        org["suspended_at"] = now
+        org["updated_at"] = now
         db.update_organization_item(org)
         logger.info(f"[Webhook] Suspend: {org['org_id']}")
 
     elif action == "unsubscribe":
         org["subscription_status"] = "cancelled"
-        org["cancelled_at"] = datetime.utcnow().isoformat()
-        org["updated_at"] = datetime.utcnow().isoformat()
+        org["cancelled_at"] = now
+        org["updated_at"] = now
         db.update_organization_item(org)
         logger.info(f"[Webhook] Unsubscribe: {org['org_id']}")
 
     elif action == "reinstate":
         org["subscription_status"] = "active"
-        org["reinstated_at"] = datetime.utcnow().isoformat()
-        org["updated_at"] = datetime.utcnow().isoformat()
+        org["reinstated_at"] = now
+        org["updated_at"] = now
         db.update_organization_item(org)
         needs_patch = True
         logger.info(f"[Webhook] Reinstate: {org['org_id']}")
@@ -554,11 +585,22 @@ async def marketplace_webhook(payload: MarketplaceWebhookPayload):
                 f"[Webhook] Failed to PATCH operation {operation_id}: {e}"
             )
 
-    # --- Mark as processed for idempotency ---
+    # --- Store activityId in Cosmos DB for persistent idempotency ---
     if activity_id:
-        _processed_webhook_ids.add(activity_id)
-        # Prevent unbounded growth: trim oldest if > 10 000
-        if len(_processed_webhook_ids) > 10_000:
-            _processed_webhook_ids.clear()
+        try:
+            webhook_record = {
+                "id": activity_id,
+                "type": "webhook_activity",
+                "activity_id": activity_id,
+                "action": action,
+                "subscription_id": subscription_id,
+                "org_id": org.get("org_id"),
+                "processed_at": datetime.utcnow().isoformat(),
+            }
+            db.organizations_container.create_item(webhook_record)
+            logger.info(f"[Webhook] Stored activityId={activity_id} for idempotency")
+        except Exception as e:
+            # Non-fatal: if storage fails, at least we processed the webhook
+            logger.error(f"[Webhook] Failed to store activityId: {e}")
 
     return {"status": "acknowledged", "action": action, "org_id": org.get("org_id")}
