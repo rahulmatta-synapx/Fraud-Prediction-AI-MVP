@@ -24,6 +24,7 @@ import Stats from "@/pages/stats";
 import HelpPage from "@/pages/help";
 import LoginPage from "@/pages/login";
 import MarketplaceLanding from "@/pages/marketplace-landing";
+import PrivacyPolicy from "@/pages/privacy-policy";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -140,9 +141,10 @@ function App() {
         <TooltipProvider>
           <MsalProvider instance={msalInstance}>
             <AzureAuthProvider>
-              {/* Marketplace landing page must be accessible without auth */}
+              {/* Public routes accessible without auth */}
               <Switch>
                 <Route path="/marketplace/landing" component={MarketplaceLanding} />
+                <Route path="/privacy" component={PrivacyPolicy} />
                 <Route>
                   <AuthenticatedApp />
                 </Route>
