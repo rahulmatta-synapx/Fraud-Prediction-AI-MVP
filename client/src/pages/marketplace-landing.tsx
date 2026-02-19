@@ -1,6 +1,21 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { Shield, CheckCircle2, XCircle, Loader2, FileText, Mail, User, Key, Package, ArrowRight } from "lucide-react";
+import {
+  Shield,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  Mail,
+  Key,
+  Package,
+  ArrowRight,
+  Copy,
+  Check,
+  Building2,
+  CreditCard,
+  RefreshCw,
+  LifeBuoy,
+} from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
@@ -30,6 +45,78 @@ interface ActivationResponse {
   message: string;
   organization: OrgResult;
   subscription: SubscriptionResult;
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={() => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }}
+      className="ml-2 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+      title="Copy to clipboard"
+    >
+      {copied ? (
+        <Check className="h-3.5 w-3.5 text-emerald-500" />
+      ) : (
+        <Copy className="h-3.5 w-3.5 text-slate-400" />
+      )}
+    </button>
+  );
+}
+
+function DetailRow({
+  icon: Icon,
+  label,
+  value,
+  mono,
+  badge,
+  badgeColor,
+}: {
+  icon?: any;
+  label: string;
+  value: string;
+  mono?: boolean;
+  badge?: boolean;
+  badgeColor?: string;
+}) {
+  if (!value) return null;
+
+  const colorMap: Record<string, string> = {
+    green: "bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-400 dark:ring-emerald-500/20",
+    blue: "bg-blue-50 text-blue-700 ring-blue-600/20 dark:bg-blue-500/10 dark:text-blue-400 dark:ring-blue-500/20",
+    purple: "bg-violet-50 text-violet-700 ring-violet-600/20 dark:bg-violet-500/10 dark:text-violet-400 dark:ring-violet-500/20",
+  };
+
+  return (
+    <div className="flex items-start justify-between py-3.5 gap-4">
+      <div className="flex items-center gap-2.5 min-w-0 shrink-0">
+        {Icon && <Icon className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />}
+        <span className="text-sm text-slate-500 dark:text-slate-400">{label}</span>
+      </div>
+      <div className="flex items-center gap-1 min-w-0 text-right">
+        {badge ? (
+          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset capitalize ${colorMap[badgeColor || "green"]}`}>
+            {value}
+          </span>
+        ) : mono ? (
+          <>
+            <code className="text-sm font-mono text-slate-700 dark:text-slate-300 break-all">
+              {value}
+            </code>
+            <CopyButton text={value} />
+          </>
+        ) : (
+          <span className="text-sm font-medium text-slate-900 dark:text-white break-all">
+            {value}
+          </span>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function MarketplaceLanding() {
@@ -74,299 +161,214 @@ export default function MarketplaceLanding() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 overflow-y-auto">
-      {/* Header */}
-      <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-sm">
-        <div className="max-w-5xl mx-auto px-6 sm:px-8 py-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg">
-              <Shield className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Synapx AI</h1>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Azure Marketplace Activation</p>
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 overflow-y-auto">
+      {/* Minimal top bar */}
+      <div className="border-b border-slate-200/60 dark:border-slate-800 backdrop-blur-sm bg-white/70 dark:bg-slate-900/70 sticky top-0 z-10">
+        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <Shield className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+            <span className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">Synapx AI</span>
           </div>
+          <span className="text-xs font-medium text-slate-400 dark:text-slate-500 hidden sm:block">
+            Azure Marketplace
+          </span>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-5xl mx-auto px-6 sm:px-8 py-12">
+      <div className="max-w-3xl mx-auto px-6 py-10 sm:py-16">
+        {/* ── Loading State ── */}
         {state === "loading" && (
-          <div className="flex flex-col items-center justify-center py-24">
-            <div className="relative">
-              <div className="absolute inset-0 bg-emerald-500/20 blur-3xl rounded-full"></div>
-              <Loader2 className="relative h-16 w-16 text-emerald-600 animate-spin mb-8" />
+          <div className="flex flex-col items-center justify-center py-32">
+            <div className="relative mb-8">
+              <div className="absolute inset-0 bg-emerald-400/20 dark:bg-emerald-400/10 blur-2xl rounded-full scale-150" />
+              <div className="relative p-5 rounded-2xl bg-white dark:bg-slate-800 shadow-lg shadow-emerald-500/10 ring-1 ring-slate-200 dark:ring-slate-700">
+                <Loader2 className="h-8 w-8 text-emerald-600 dark:text-emerald-400 animate-spin" />
+              </div>
             </div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-3">
-              Activating Your Subscription
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
+              Activating your subscription
             </h2>
-            <p className="text-slate-600 dark:text-slate-400 text-center max-w-md text-base">
-              Setting up your enterprise account and provisioning resources...
+            <p className="text-sm text-slate-500 dark:text-slate-400 text-center max-w-sm">
+              We're setting up your enterprise account. This usually takes just a few seconds.
             </p>
           </div>
         )}
 
+        {/* ── Success State ── */}
         {state === "success" && response && (
-          <div className="space-y-8 animate-in fade-in duration-500">
-            {/* Success Header */}
-            <div className="text-center py-8">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-full mb-4">
-                <CheckCircle2 className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
-              </div>
-              <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-2 tracking-tight">
-                Subscription Activated
-              </h2>
-              <p className="text-lg text-slate-600 dark:text-slate-400">
-                Your Azure Marketplace purchase is complete
-              </p>
-            </div>
-
-            {/* Subscription Details Receipt */}
-            <div className="max-w-3xl mx-auto">
-              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-                {/* Header */}
-                <div className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-700 px-8 py-6 border-b border-slate-200 dark:border-slate-600">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm">
-                      <FileText className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-slate-900 dark:text-white">
-                        Subscription Details
-                      </h3>
-                      <p className="text-sm text-slate-500 dark:text-slate-400">
-                        Microsoft Azure Marketplace
-                      </p>
-                    </div>
-                  </div>
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Success banner */}
+            <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-500/5 ring-1 ring-emerald-200 dark:ring-emerald-500/20 p-6 sm:p-8">
+              <div className="flex items-start gap-4">
+                <div className="p-2 rounded-xl bg-emerald-100 dark:bg-emerald-500/10 shrink-0">
+                  <CheckCircle2 className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
                 </div>
-
-                {/* Details Grid */}
-                <div className="p-8">
-                  <div className="space-y-6">
-                    {/* Customer Information Section */}
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-4 uppercase tracking-wider">
-                        Customer Information
-                      </h4>
-                      <div>
-                        {/* Customer Email */}
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <Mail className="h-4 w-4 text-slate-400" />
-                            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                              Customer Email
-                            </label>
-                          </div>
-                          <p className="text-base font-medium text-slate-900 dark:text-white">
-                            {response.subscription.customer_email || response.organization.email}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Subscription Details Section */}
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-4 uppercase tracking-wider">
-                        Subscription Details
-                      </h4>
-                      <div className="space-y-4">
-                        {/* Subscription ID */}
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <Key className="h-4 w-4 text-slate-400" />
-                            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                              Subscription ID
-                            </label>
-                          </div>
-                          <p className="text-sm font-mono text-slate-700 dark:text-slate-300 break-all bg-slate-50 dark:bg-slate-900/50 px-3 py-2 rounded-lg">
-                            {response.subscription.id}
-                          </p>
-                        </div>
-
-                        {/* Subscription Name */}
-                        {response.subscription.name && (
-                          <div>
-                            <div className="flex items-center gap-2 mb-2">
-                              <FileText className="h-4 w-4 text-slate-400" />
-                              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                Subscription Name
-                              </label>
-                            </div>
-                            <p className="text-base font-medium text-slate-900 dark:text-white">
-                              {response.subscription.name}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Status Row */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div>
-                            <div className="flex items-center gap-2 mb-2">
-                              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                Status
-                              </label>
-                            </div>
-                            <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-bold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 capitalize">
-                              {response.organization.subscription_status}
-                            </span>
-                          </div>
-
-                          <div>
-                            <div className="flex items-center gap-2 mb-2">
-                              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                Marketplace Status
-                              </label>
-                            </div>
-                            <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
-                              {response.subscription.status}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Plan & Billing Section */}
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-4 uppercase tracking-wider">
-                        Plan & Billing
-                      </h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Offer */}
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <Package className="h-4 w-4 text-slate-400" />
-                            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                              Offer
-                            </label>
-                          </div>
-                          <p className="text-base font-medium text-slate-900 dark:text-white">
-                            {response.subscription.offer_id}
-                          </p>
-                        </div>
-
-                        {/* Plan */}
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                              Plan
-                            </label>
-                          </div>
-                          <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-bold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 uppercase">
-                            {response.subscription.plan_id}
-                          </span>
-                        </div>
-
-                        {/* Purchaser Email */}
-                        {response.subscription.purchaser_email && (
-                          <div className="md:col-span-2">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Mail className="h-4 w-4 text-slate-400" />
-                              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                Purchaser Email
-                              </label>
-                            </div>
-                            <p className="text-base font-medium text-slate-900 dark:text-white">
-                              {response.subscription.purchaser_email}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Azure Tenant ID */}
-                        <div className="md:col-span-2">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Key className="h-4 w-4 text-slate-400" />
-                            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                              Azure Tenant ID
-                            </label>
-                          </div>
-                          <p className="text-sm font-mono text-slate-700 dark:text-slate-300 break-all bg-slate-50 dark:bg-slate-900/50 px-3 py-2 rounded-lg">
-                            {response.subscription.azure_tenant_id}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Footer Note */}
-                <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-4 border-t border-slate-200 dark:border-slate-700">
-                  <p className="text-sm text-slate-600 dark:text-slate-400 text-center">
-                    Save these details for your records and billing verification
+                <div className="min-w-0">
+                  <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-1">
+                    Purchase confirmed
+                  </h2>
+                  <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Your Azure Marketplace subscription has been activated. Review the details below, then sign in with Microsoft to access your dashboard.
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Call to Action */}
-            <div className="text-center pt-6">
+            {/* Main details card */}
+            <div className="rounded-2xl bg-white dark:bg-slate-800/50 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700/50 overflow-hidden">
+              {/* Organization header */}
+              <div className="px-6 sm:px-8 pt-6 sm:pt-8 pb-0">
+                <div className="flex items-center gap-3 mb-1">
+                  <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
+                    <Building2 className="h-4.5 w-4.5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-slate-900 dark:text-white leading-tight">
+                      {response.organization.org_name}
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {response.subscription.customer_email || response.organization.email}
+                    </p>
+                  </div>
+                  <div className="ml-auto">
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-400 dark:ring-emerald-500/20 capitalize">
+                      {response.organization.subscription_status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="px-6 sm:px-8"><div className="border-b border-slate-100 dark:border-slate-700/50 mt-5" /></div>
+
+              {/* Subscription info */}
+              <div className="px-6 sm:px-8 py-1">
+                <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                  <DetailRow icon={Key} label="Subscription ID" value={response.subscription.id} mono />
+                  {response.subscription.name && (
+                    <DetailRow icon={Package} label="Subscription" value={response.subscription.name} />
+                  )}
+                  <DetailRow icon={CreditCard} label="Offer" value={response.subscription.offer_id} />
+                  <DetailRow label="Plan" value={response.subscription.plan_id} badge badgeColor="purple" />
+                  <DetailRow label="Marketplace Status" value={response.subscription.status} badge badgeColor="blue" />
+                  {response.subscription.purchaser_email && (
+                    <DetailRow icon={Mail} label="Purchaser" value={response.subscription.purchaser_email} />
+                  )}
+                  <DetailRow icon={Building2} label="Tenant ID" value={response.subscription.azure_tenant_id} mono />
+                </div>
+              </div>
+
+              {/* Card footer */}
+              <div className="bg-slate-50 dark:bg-slate-800/80 px-6 sm:px-8 py-3.5 border-t border-slate-100 dark:border-slate-700/50">
+                <p className="text-xs text-slate-400 dark:text-slate-500 text-center">
+                  Save these details for your records · Billing managed through Azure Portal
+                </p>
+              </div>
+            </div>
+
+            {/* Next steps */}
+            <div className="rounded-2xl bg-white dark:bg-slate-800/50 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700/50 p-6 sm:p-8">
+              <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-4">
+                Next steps
+              </h4>
+              <div className="grid gap-3">
+                {[
+                  { step: "1", text: "Sign in with your Microsoft account to access the dashboard" },
+                  { step: "2", text: "Configure your organization settings and invite team members" },
+                  { step: "3", text: "Start submitting claims for AI-powered fraud analysis" },
+                ].map((item) => (
+                  <div key={item.step} className="flex items-start gap-3">
+                    <span className="flex items-center justify-center h-6 w-6 rounded-full bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-xs font-bold shrink-0 mt-0.5">
+                      {item.step}
+                    </span>
+                    <span className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                      {item.text}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* CTA */}
+            <div className="flex flex-col items-center gap-3 pt-2 pb-4">
               <button
                 onClick={() => navigate("/login")}
-                className="inline-flex items-center gap-3 px-8 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-xl hover:scale-105 active:scale-100"
+                className="group inline-flex items-center gap-2.5 px-7 py-3.5 bg-slate-900 dark:bg-white hover:bg-slate-800 dark:hover:bg-slate-100 text-white dark:text-slate-900 font-semibold rounded-xl transition-all shadow-md hover:shadow-lg"
               >
-                Sign In to Continue
-                <ArrowRight className="h-5 w-5" />
+                Sign in with Microsoft
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </button>
-              <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-                Sign in with your Microsoft account to access your dashboard
-              </p>
+              <span className="text-xs text-slate-400 dark:text-slate-500">
+                Enterprise SSO powered by Azure AD
+              </span>
             </div>
           </div>
         )}
 
+        {/* ── Error State ── */}
         {state === "error" && (
-          <div className="max-w-2xl mx-auto animate-in fade-in duration-300">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-red-200 dark:border-red-900 overflow-hidden">
-              <div className="bg-gradient-to-br from-red-500 to-red-600 px-8 py-12 text-center">
-                <div className="inline-flex items-center justify-center w-20 h-20 bg-white/20 rounded-full mb-6">
-                  <XCircle className="h-12 w-12 text-white" />
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300 max-w-xl mx-auto">
+            {/* Error banner */}
+            <div className="rounded-2xl bg-red-50 dark:bg-red-500/5 ring-1 ring-red-200 dark:ring-red-500/20 p-6 sm:p-8">
+              <div className="flex items-start gap-4">
+                <div className="p-2 rounded-xl bg-red-100 dark:bg-red-500/10 shrink-0">
+                  <XCircle className="h-7 w-7 text-red-600 dark:text-red-400" />
                 </div>
-                <h2 className="text-3xl font-bold text-white mb-2">
-                  Activation Failed
-                </h2>
-                <p className="text-red-50 text-lg">
-                  We encountered an issue while activating your subscription
-                </p>
-              </div>
-              <div className="p-8 space-y-6">
-                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-5">
-                  <p className="text-sm font-medium text-red-800 dark:text-red-300 leading-relaxed">
-                    {error}
+                <div className="min-w-0">
+                  <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-1">
+                    Activation failed
+                  </h2>
+                  <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                    We couldn't activate your subscription. Here's what happened:
                   </p>
                 </div>
-                <div className="space-y-3">
-                  <h3 className="font-semibold text-slate-900 dark:text-white text-lg">What to do next:</h3>
-                  <ul className="space-y-2.5 text-slate-600 dark:text-slate-400">
-                    <li className="flex items-start gap-2">
-                      <span className="text-emerald-600 mt-0.5">•</span>
-                      <span>Verify the activation link is correct and hasn't expired</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-emerald-600 mt-0.5">•</span>
-                      <span>Try refreshing the page and attempting activation again</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-emerald-600 mt-0.5">•</span>
-                      <span>Contact our support team if the issue persists</span>
-                    </li>
-                  </ul>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                  <button
-                    onClick={() => window.location.reload()}
-                    className="flex-1 px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-all shadow-md hover:shadow-lg"
-                  >
-                    Try Again
-                  </button>
-                  <a
-                    href="mailto:support@synapx.ai"
-                    className="flex-1 px-6 py-3.5 border-2 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all text-center"
-                  >
-                    Contact Support
-                  </a>
-                </div>
               </div>
+            </div>
+
+            {/* Error detail */}
+            <div className="rounded-2xl bg-white dark:bg-slate-800/50 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700/50 overflow-hidden">
+              <div className="px-6 sm:px-8 py-5 border-b border-slate-100 dark:border-slate-700/50">
+                <code className="text-sm text-red-600 dark:text-red-400 leading-relaxed">
+                  {error}
+                </code>
+              </div>
+              <div className="px-6 sm:px-8 py-5">
+                <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-3">
+                  Try these steps
+                </h4>
+                <ul className="space-y-2.5">
+                  {[
+                    "Verify the activation link is correct and hasn't expired",
+                    "Refresh this page and try again",
+                    "Contact support if the problem continues",
+                  ].map((item, i) => (
+                    <li key={i} className="flex items-start gap-2.5 text-sm text-slate-600 dark:text-slate-400">
+                      <span className="flex items-center justify-center h-5 w-5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 text-xs font-bold shrink-0 mt-0.5">
+                        {i + 1}
+                      </span>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={() => window.location.reload()}
+                className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 bg-slate-900 dark:bg-white hover:bg-slate-800 dark:hover:bg-slate-100 text-white dark:text-slate-900 font-semibold rounded-xl transition-all shadow-md hover:shadow-lg"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Try Again
+              </button>
+              <a
+                href="mailto:support@synapx.ai"
+                className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold rounded-xl ring-1 ring-slate-200 dark:ring-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
+              >
+                <LifeBuoy className="h-4 w-4" />
+                Contact Support
+              </a>
             </div>
           </div>
         )}
