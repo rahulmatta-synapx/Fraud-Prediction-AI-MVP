@@ -162,14 +162,16 @@ export default function MarketplaceLanding() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 overflow-y-auto">
-      {/* Minimal top bar */}
+      {/* Top bar */}
       <div className="border-b border-slate-200/60 dark:border-slate-800 backdrop-blur-sm bg-white/70 dark:bg-slate-900/70 sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <Shield className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Fraud Prediction AI</h1>
+        <div className="max-w-3xl mx-auto px-6 py-5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-1.5 bg-emerald-50 dark:bg-emerald-500/10 rounded-lg">
+              <Shield className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Fraud Prediction AI</h1>
           </div>
-          <span className="text-xs font-medium text-slate-400 dark:text-slate-500 hidden sm:block">
+          <span className="text-sm font-medium text-slate-400 dark:text-slate-500 hidden sm:block">
             Azure Marketplace
           </span>
         </div>
