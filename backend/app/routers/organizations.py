@@ -385,6 +385,20 @@ async def marketplace_landing(body: MarketplaceLandingRequest):
             f"Org {org['org_id']} is provisioned — activate must be retried."
         )
 
+    # --- Step 4: Extract subscription details for frontend display ---
+    sub_name = sub_details.get("subscriptionName", "")
+    sub_status = sub_details.get("saasSubscriptionStatus", "")
+    
+    # Customer details (beneficiary = who gets access)
+    customer_email = beneficiary.get("emailId", "")
+    customer_obj_id = beneficiary.get("objectId", "")
+    customer_tenant = beneficiary.get("tenantId", tenant_id)
+    
+    # Purchaser details (who made the purchase - can differ from beneficiary)
+    purchaser_email = purchaser.get("emailId", "")
+    purchaser_obj_id = purchaser.get("objectId", "")
+    purchaser_tenant = purchaser.get("tenantId", "")
+
     return {
         "status": "success",
         "message": "Subscription activated successfully",
@@ -394,8 +408,19 @@ async def marketplace_landing(body: MarketplaceLandingRequest):
             "subscription_tier": org["subscription_tier"],
             "subscription_status": org["subscription_status"],
         },
-        "marketplace_subscription_id": marketplace_sub_id,
-        "plan_id": plan_id,
+        "subscription": {
+            "id": marketplace_sub_id,
+            "name": sub_name,
+            "status": sub_status,
+            "offer_id": offer_id,
+            "plan_id": plan_id,
+            "customer_email": customer_email,
+            "customer_object_id": customer_obj_id,
+            "customer_tenant_id": customer_tenant,
+            "purchaser_email": purchaser_email,
+            "purchaser_object_id": purchaser_obj_id,
+            "purchaser_tenant_id": purchaser_tenant,
+        },
     }
 
 
