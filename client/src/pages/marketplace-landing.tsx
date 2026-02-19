@@ -21,7 +21,6 @@ interface SubscriptionResult {
   offer_id: string;
   plan_id: string;
   customer_email: string;
-  customer_name: string;
   purchaser_email: string;
   azure_tenant_id: string;
 }
@@ -145,138 +144,148 @@ export default function MarketplaceLanding() {
 
                 {/* Details Grid */}
                 <div className="p-8">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                    {/* Customer Email */}
+                  <div className="space-y-6">
+                    {/* Customer Information Section */}
                     <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <Mail className="h-4 w-4 text-slate-400" />
-                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                          Customer Email
-                        </label>
-                      </div>
-                      <p className="text-base font-medium text-slate-900 dark:text-white">
-                        {response.subscription.customer_email || response.organization.email}
-                      </p>
-                    </div>
-
-                    {/* Customer Name */}
-                    {response.subscription.customer_name && (
+                      <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-4 uppercase tracking-wider">
+                        Customer Information
+                      </h4>
                       <div>
-                        <div className="flex items-center gap-2 mb-2">
-                          <User className="h-4 w-4 text-slate-400" />
-                          <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                            Customer Name
-                          </label>
+                        {/* Customer Email */}
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <Mail className="h-4 w-4 text-slate-400" />
+                            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                              Customer Email
+                            </label>
+                          </div>
+                          <p className="text-base font-medium text-slate-900 dark:text-white">
+                            {response.subscription.customer_email || response.organization.email}
+                          </p>
                         </div>
-                        <p className="text-base font-medium text-slate-900 dark:text-white">
-                          {response.subscription.customer_name}
-                        </p>
                       </div>
-                    )}
-
-                    {/* Subscription ID */}
-                    <div className="md:col-span-2">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Key className="h-4 w-4 text-slate-400" />
-                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                          Subscription ID
-                        </label>
-                      </div>
-                      <p className="text-sm font-mono text-slate-700 dark:text-slate-300 break-all bg-slate-50 dark:bg-slate-900/50 px-3 py-2 rounded-lg">
-                        {response.subscription.id}
-                      </p>
                     </div>
 
-                    {/* Subscription Name */}
-                    {response.subscription.name && (
-                      <div className="md:col-span-2">
-                        <div className="flex items-center gap-2 mb-2">
-                          <FileText className="h-4 w-4 text-slate-400" />
-                          <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                            Subscription Name
-                          </label>
+                    {/* Subscription Details Section */}
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-4 uppercase tracking-wider">
+                        Subscription Details
+                      </h4>
+                      <div className="space-y-4">
+                        {/* Subscription ID */}
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <Key className="h-4 w-4 text-slate-400" />
+                            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                              Subscription ID
+                            </label>
+                          </div>
+                          <p className="text-sm font-mono text-slate-700 dark:text-slate-300 break-all bg-slate-50 dark:bg-slate-900/50 px-3 py-2 rounded-lg">
+                            {response.subscription.id}
+                          </p>
                         </div>
-                        <p className="text-base font-medium text-slate-900 dark:text-white">
-                          {response.subscription.name}
-                        </p>
-                      </div>
-                    )}
 
-                    {/* Status */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                          Status
-                        </label>
-                      </div>
-                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-bold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300">
-                        {response.organization.subscription_status}
-                      </span>
-                    </div>
+                        {/* Subscription Name */}
+                        {response.subscription.name && (
+                          <div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <FileText className="h-4 w-4 text-slate-400" />
+                              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                Subscription Name
+                              </label>
+                            </div>
+                            <p className="text-base font-medium text-slate-900 dark:text-white">
+                              {response.subscription.name}
+                            </p>
+                          </div>
+                        )}
 
-                    {/* Marketplace Status */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                          Marketplace Status
-                        </label>
-                      </div>
-                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
-                        {response.subscription.status}
-                      </span>
-                    </div>
+                        {/* Status Row */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                Status
+                              </label>
+                            </div>
+                            <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-bold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 capitalize">
+                              {response.organization.subscription_status}
+                            </span>
+                          </div>
 
-                    {/* Offer Name */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <Package className="h-4 w-4 text-slate-400" />
-                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                          Offer
-                        </label>
-                      </div>
-                      <p className="text-base font-medium text-slate-900 dark:text-white">
-                        {response.subscription.offer_id}
-                      </p>
-                    </div>
-
-                    {/* Plan */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                          Plan
-                        </label>
-                      </div>
-                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-bold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 uppercase">
-                        {response.subscription.plan_id}
-                      </span>
-                    </div>
-
-                    {/* Purchaser Email */}
-                    {response.subscription.purchaser_email && (
-                      <div>
-                        <div className="flex items-center gap-2 mb-2">
-                          <Mail className="h-4 w-4 text-slate-400" />
-                          <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                            Purchaser Email
-                          </label>
+                          <div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                Marketplace Status
+                              </label>
+                            </div>
+                            <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
+                              {response.subscription.status}
+                            </span>
+                          </div>
                         </div>
-                        <p className="text-base font-medium text-slate-900 dark:text-white">
-                          {response.subscription.purchaser_email}
-                        </p>
                       </div>
-                    )}
+                    </div>
 
-                    {/* Azure Tenant ID */}
-                    <div className={response.subscription.purchaser_email ? "" : "md:col-span-2"}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <Key className="h-4 w-4 text-slate-400" />
-                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                          Azure Tenant ID
-                        </label>
+                    {/* Plan & Billing Section */}
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-4 uppercase tracking-wider">
+                        Plan & Billing
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Offer */}
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <Package className="h-4 w-4 text-slate-400" />
+                            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                              Offer
+                            </label>
+                          </div>
+                          <p className="text-base font-medium text-slate-900 dark:text-white">
+                            {response.subscription.offer_id}
+                          </p>
+                        </div>
+
+                        {/* Plan */}
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                              Plan
+                            </label>
+                          </div>
+                          <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-bold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 uppercase">
+                            {response.subscription.plan_id}
+                          </span>
+                        </div>
+
+                        {/* Purchaser Email */}
+                        {response.subscription.purchaser_email && (
+                          <div className="md:col-span-2">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Mail className="h-4 w-4 text-slate-400" />
+                              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                Purchaser Email
+                              </label>
+                            </div>
+                            <p className="text-base font-medium text-slate-900 dark:text-white">
+                              {response.subscription.purchaser_email}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Azure Tenant ID */}
+                        <div className="md:col-span-2">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Key className="h-4 w-4 text-slate-400" />
+                            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                              Azure Tenant ID
+                            </label>
+                          </div>
+                          <p className="text-sm font-mono text-slate-700 dark:text-slate-300 break-all bg-slate-50 dark:bg-slate-900/50 px-3 py-2 rounded-lg">
+                            {response.subscription.azure_tenant_id}
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-sm font-mono text-slate-700 dark:text-slate-300 break-all bg-slate-50 dark:bg-slate-900/50 px-3 py-2 rounded-lg">
-                        {response.subscription.azure_tenant_id}
-                      </p>
                     </div>
                   </div>
                 </div>
@@ -293,14 +302,14 @@ export default function MarketplaceLanding() {
             {/* Call to Action */}
             <div className="text-center pt-6">
               <button
-                onClick={() => navigate("/")}
+                onClick={() => navigate("/login")}
                 className="inline-flex items-center gap-3 px-8 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-xl hover:scale-105 active:scale-100"
               >
-                Continue to Dashboard
+                Sign In to Continue
                 <ArrowRight className="h-5 w-5" />
               </button>
               <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-                Sign in with your Microsoft account to get started
+                Sign in with your Microsoft account to access your dashboard
               </p>
             </div>
           </div>
